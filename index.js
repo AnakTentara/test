@@ -44,7 +44,27 @@ conversationHistory.push({ role: "system", content: SYSTEM_PROMPT });
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        headless: true,
+        executablePath: process.env.CHROME_PATH || undefined,
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=ImprovedCookieControls,LazyFrameLoading',
+            '--disable-extensions',
+            '--disable-web-security',
+            '--disable-features=AudioServiceOutOfProcess',
+            '--memory-pressure-off'
+        ],
+        defaultViewport: null,
+        ignoreHTTPSErrors: true
     }
 });
 
@@ -90,7 +110,7 @@ client.on('message', async msg => {
 
         try {
             const completion = await openai.chat.completions.create({
-                model: "gemini-3.1-flash-lite", // Nama model sesuai request
+                model: "gemini-3.1-flash-lite-preview", // Nama model sesuai request
                 messages: conversationHistory,
                 temperature: 0.8,
                 max_tokens: 500,
