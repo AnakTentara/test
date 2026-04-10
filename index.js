@@ -12,7 +12,7 @@ const openai = new OpenAI({
 });
 
 // Setup target phone number
-const TARGET_NUMBER = '6285123097680@c.us';
+const TARGET_NUMBER = '628971246099@c.us';
 
 // Konteks memori percakapan
 let conversationHistory = [];
