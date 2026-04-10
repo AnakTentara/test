@@ -95,7 +95,17 @@ client.on('disconnected', (reason) => {
 });
 
 client.on('message_create', async msg => {
-    const chat = await msg.getChat();
+    // Abaikan status WhatsApp atau pengumuman broadcast/channel
+    if (msg.isStatus || msg.id.remote === 'status@broadcast') return;
+
+    let chat;
+    try {
+        chat = await msg.getChat();
+    } catch (error) {
+        // Abaikan jika pesan berasal dari tipe chat yang tidak didukung (misal WhatsApp Channels)
+        return;
+    }
+
     const chatId = chat.id._serialized;
 
     // Command handling (hanya berlaku jika dikirim oleh nomor bot ini sendiri / dari hp kamu)
@@ -108,7 +118,7 @@ client.on('message_create', async msg => {
             console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId}`);
             return;
         }
-        
+
         if (msg.body === '/stop') {
             if (activeChats.has(chatId)) {
                 activeChats.delete(chatId);
@@ -154,7 +164,7 @@ client.on('message_create', async msg => {
 
             // Simpan ke history
             conversationHistory.push({ role: "assistant", content: answer });
-            
+
             // Perbarui memori di map
             chatMemories.set(chatId, conversationHistory);
 
@@ -165,7 +175,7 @@ client.on('message_create', async msg => {
 
             // LANGSUNG KIRIM KE WHATSAPP (Acell)
             await msg.reply(answer);
-            
+
             // Simpan ke file log teks sebagai backup
             const logEntry = `[${new Date().toLocaleTimeString()}] SHAKARU ke ${chat.name}:\n${answer}\n\n`;
             fs.appendFileSync(path.join(__dirname, 'chat-log.txt'), logEntry);
