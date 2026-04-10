@@ -11,11 +11,9 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Setup target phone number
-const TARGET_NUMBER = '628971246099@c.us';
-
-// Konteks memori percakapan
-let conversationHistory = [];
+// State Roleplay per-chat
+const activeChats = new Set();
+const chatMemories = new Map(); // chatId -> conversationHistory array
 
 // System Prompt
 const SYSTEM_PROMPT = `
@@ -41,7 +39,7 @@ Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di aw
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
 
-conversationHistory.push({ role: "system", content: SYSTEM_PROMPT });
+// System prompt akan disuntikkan per-chat saat /rp diaktifkan
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -81,7 +79,7 @@ client.on('qr', (qr) => {
 
 client.on('ready', () => {
     console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
-    console.log(`Menunggu pesan dari Acell: ${TARGET_NUMBER.split('@')[0]}\n`);
+    console.log(`Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n`);
 });
 
 client.on('authenticated', () => {
@@ -96,23 +94,53 @@ client.on('disconnected', (reason) => {
     console.log('🛑 Bot terputus! Alasan:', reason);
 });
 
-client.on('message', async msg => {
-    if (msg.from === TARGET_NUMBER) {
-        console.log(`\n[${new Date().toLocaleTimeString()}] Acell 👩: ${msg.body}`);
+client.on('message_create', async msg => {
+    const chat = await msg.getChat();
+    const chatId = chat.id._serialized;
+
+    // Command handling (hanya berlaku jika dikirim oleh nomor bot ini sendiri / dari hp kamu)
+    if (msg.fromMe) {
+        if (msg.body === '/rp') {
+            activeChats.add(chatId);
+            // Reset atau buat memori baru untuk chat ini
+            chatMemories.set(chatId, [{ role: "system", content: SYSTEM_PROMPT }]);
+            await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN untuk chat ini.');
+            console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId}`);
+            return;
+        }
+        
+        if (msg.body === '/stop') {
+            if (activeChats.has(chatId)) {
+                activeChats.delete(chatId);
+                chatMemories.delete(chatId);
+                await msg.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
+                console.log(`\n🛑 Roleplay dimatikan di chat: ${chat.name || chatId}`);
+            }
+            return;
+        }
+    }
+
+    // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
+    if (activeChats.has(chatId) && !msg.fromMe) {
+        console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chat.name}): ${msg.body}`);
+
+        // Ambil riwayat chat dari map, atau inisialisasi jika tidak ada
+        let conversationHistory = chatMemories.get(chatId) || [{ role: "system", content: SYSTEM_PROMPT }];
 
         // Inject timestamp (GMT+7 WIB) ke dalam prompt agar Shakaru tahu persis jam berapa Acell chatting
         const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-        const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n${msg.body}`;
+        const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${msg.body}`;
 
         // Simpan pesan user ke history
         conversationHistory.push({ role: "user", content: userPromptWithContext });
 
-        // Batasi panjang histori agar tidak terkena token limit (ambil 1 system prompt + 10 interaksi terakhir)
+        // Batasi panjang histori agar tidak terkena token limit (ambil 1 system prompt + 20 interaksi terakhir)
         if (conversationHistory.length > 21) {
             conversationHistory = [conversationHistory[0], ...conversationHistory.slice(conversationHistory.length - 20)];
         }
 
         console.log('🔄 Shakaru sedang memikirkan balasan...');
+        await chat.sendStateTyping(); // Munculkan status "Typing..." di WA Acell
 
         try {
             const completion = await openai.chat.completions.create({
@@ -126,14 +154,20 @@ client.on('message', async msg => {
 
             // Simpan ke history
             conversationHistory.push({ role: "assistant", content: answer });
+            
+            // Perbarui memori di map
+            chatMemories.set(chatId, conversationHistory);
 
-            // LOG Hasil AI (TIDAK DIKIRIM KE WHATSAPP SECARA OTOMATIS)
+            // LOG Hasil AI
             console.log(`\n================== SHAKARU MEMBALAS ==================`);
             console.log(answer);
             console.log(`=====================================================\n`);
 
-            // Simpan ke file log teks supaya mudah disalin
-            const logEntry = `[${new Date().toLocaleTimeString()}] SHAKARU:\n${answer}\n\n`;
+            // LANGSUNG KIRIM KE WHATSAPP (Acell)
+            await msg.reply(answer);
+            
+            // Simpan ke file log teks sebagai backup
+            const logEntry = `[${new Date().toLocaleTimeString()}] SHAKARU ke ${chat.name}:\n${answer}\n\n`;
             fs.appendFileSync(path.join(__dirname, 'chat-log.txt'), logEntry);
 
         } catch (error) {
