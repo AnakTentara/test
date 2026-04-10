@@ -111,10 +111,35 @@ client.on('message_create', async msg => {
     // Command handling (Bisa dihidupkan/dimatikan baik dari HP bot maupun oleh si pengirim)
     if (msg.body.trim() === '/rp') {
         activeChats.add(chatId);
-        // Reset atau buat memori baru untuk chat ini
-        chatMemories.set(chatId, [{ role: "system", content: SYSTEM_PROMPT }]);
-        await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN untuk chat ini.');
-        console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId}`);
+        
+        // Buat memori dasar
+        let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
+        
+        try {
+            // Ambil 15 chat terakhir sebelum perintah /rp diketik untuk jadi konteks
+            const pastMessages = await chat.fetchMessages({ limit: 15 });
+            for (const pastMsg of pastMessages) {
+                if (pastMsg.body.trim() === '/rp' || pastMsg.body.trim() === '/stop') continue;
+                if (pastMsg.isStatus || pastMsg.type !== 'chat') continue;
+                
+                const role = pastMsg.fromMe ? "assistant" : "user";
+                let content = pastMsg.body;
+                
+                if (role === "user") {
+                    const timeStr = new Date(pastMsg.timestamp * 1000).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+                    content = `[INFO WAKTU SAAT INI UNTUKMU: ${timeStr}]\nAcell: ${content}`;
+                }
+                historyContext.push({ role: role, content: content });
+            }
+        } catch (err) {
+            console.error("Gagal mengambil pesan lama:", err.message);
+        }
+
+        // Terapkan memori gabungan
+        chatMemories.set(chatId, historyContext);
+        
+        await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)');
+        console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId} (dengan ${historyContext.length - 1} konteks chat masa lalu)`);
         return;
     }
     
@@ -174,9 +199,7 @@ client.on('message_create', async msg => {
             // LANGSUNG KIRIM KE WHATSAPP (Acell)
             await msg.reply(answer);
 
-            // Simpan ke file log teks sebagai backup
-            const logEntry = `[${new Date().toLocaleTimeString()}] SHAKARU ke ${chat.name}:\n${answer}\n\n`;
-            fs.appendFileSync(path.join(__dirname, 'chat-log.txt'), logEntry);
+
 
         } catch (error) {
             console.error('\n❌ Gagal menghubungi AI:', error.message);
