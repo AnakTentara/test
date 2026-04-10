@@ -108,26 +108,24 @@ client.on('message_create', async msg => {
 
     const chatId = chat.id._serialized;
 
-    // Command handling (hanya berlaku jika dikirim oleh nomor bot ini sendiri / dari hp kamu)
-    if (msg.fromMe) {
-        if (msg.body === '/rp') {
-            activeChats.add(chatId);
-            // Reset atau buat memori baru untuk chat ini
-            chatMemories.set(chatId, [{ role: "system", content: SYSTEM_PROMPT }]);
-            await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN untuk chat ini.');
-            console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId}`);
-            return;
+    // Command handling (Bisa dihidupkan/dimatikan baik dari HP bot maupun oleh si pengirim)
+    if (msg.body.trim() === '/rp') {
+        activeChats.add(chatId);
+        // Reset atau buat memori baru untuk chat ini
+        chatMemories.set(chatId, [{ role: "system", content: SYSTEM_PROMPT }]);
+        await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN untuk chat ini.');
+        console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId}`);
+        return;
+    }
+    
+    if (msg.body.trim() === '/stop') {
+        if (activeChats.has(chatId)) {
+            activeChats.delete(chatId);
+            chatMemories.delete(chatId);
+            await msg.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
+            console.log(`\n🛑 Roleplay dimatikan di chat: ${chat.name || chatId}`);
         }
-
-        if (msg.body === '/stop') {
-            if (activeChats.has(chatId)) {
-                activeChats.delete(chatId);
-                chatMemories.delete(chatId);
-                await msg.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
-                console.log(`\n🛑 Roleplay dimatikan di chat: ${chat.name || chatId}`);
-            }
-            return;
-        }
+        return;
     }
 
     // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
