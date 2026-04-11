@@ -60,6 +60,33 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         return;
     }
 
+    // COMMAND: .help / /help
+    if (textBody === '.help' || textBody === '/help') {
+        const helpText = `🤖 *AI-HAIKARU & SHAKARU SYSTEM* 🤖
+_Bot Hybrid Baileys by Haikal_
+
+*✨ Fitur AI-Haikaru (Publik)*:
+1. Teman ngobrol cerdas & gaul (Tinggal chat aja langsung).
+2. Auto-Reaction Emoji di setiap chatmu.
+3. Otak AI mengingat 15 chat terakhirmu biar obrolan nyambung.
+
+*🔪 Fitur Shakaru (Private RP)*:
+1. Mode Mafia agresif khusus Nona Acell.
+2. Sistem Saran membeberkan 3 opsi tindakan.
+3. Infinite Memory (Mengingat seluruh kejadian dari awal).
+
+*📜 Daftar Command*:
+- *.help* : Menampilkan menu ini
+- *.ping* : Cek server VPS
+- */rp* : Masuk ke mode Shakaru (Khusus Acell)
+- */stop* : Mematikan mode Shakaru (Kembali ke Haikaru)
+- */continue* : Meminta Shakaru lanjut bertindak (Khusus Mode RP)
+
+_Catatan: Fitur Stiker & Gambar sedang dalam tahap perakitan server!_`;
+        await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
+        return;
+    }
+
     // COMMAND: /continue
     if (textBody === '/continue') {
         if (!chatId.includes('182218953596969')) {
