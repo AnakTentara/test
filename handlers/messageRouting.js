@@ -1,8 +1,8 @@
 const { activeChats, disabledChats, saveMemories, saveDisabledChats, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
-const { analyzeEmojiReaction } = require('./geminiRotator');
+const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
-const { runAgent, isOwner, incrementReply, incrementVN } = require('./agentHandler');
+const { runAgent, isOwner, incrementReply, incrementVN, getPersonaForChat } = require('./agentHandler');
 
 let reactionCooldowns = new Map();
 
@@ -15,6 +15,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const messageType = Object.keys(msg.message)[0];
     const isFromMe = msg.key.fromMe;
     const chatId = msg.key.remoteJid;
+    const pushName = msg.pushName || 'Pengguna'; // Nama kontak pengirim
 
     let textMessage = '';
     let imageObj = null;
@@ -41,6 +42,28 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     const textBody = textMessage.trim();
     const isGroup = chatId.endsWith('@g.us');
+
+    // ==== CONTEXT PREFIX (untuk disuntik ke AI context) ====
+    const timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false });
+    const contextPrefix = `[👤 ${pushName} | 🆔 ${chatId} | 📅 ${timestamp}]\n`;
+
+    // Fungsi generate intro singkat dari AI untuk command otomatis
+    async function getAICommandIntro(commandType) {
+        try {
+            const client = getLocalClient();
+            const persona = getPersonaForChat(chatId);
+            const completion = await client.chat.completions.create({
+                model: 'gemini-3.1-flash-lite-preview',
+                messages: [
+                    { role: 'system', content: persona },
+                    { role: 'user', content: `[SISTEM] User ${pushName} memanggil command .${commandType}. Berikan SATU kalimat singkat sebagai intro/pembuka yang ceria dan natural sebelum datanya muncul. JANGAN tambah info teknis, cukup kalimat pembuka!` }
+                ],
+                temperature: 0.9,
+                max_tokens: 80
+            });
+            return completion.choices[0].message.content.trim();
+        } catch { return null; }
+    }
 
     // Mencegah AI membaca chat jika grup/chat sedang masuk list Disable
     if (disabledChats.has(chatId) && textBody !== '/enable' && textBody !== '/disable') {
@@ -91,7 +114,14 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     // COMMAND: /test /ping
     if (textBody === '/test' || textBody === '/ping' || textBody === '.ping') {
         const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
-        await sock.sendMessage(chatId, { text: `🏓 Pong! Bot Baileys Modular berjalan. (Waktu server: ${timeNow})` }, { quoted: msg });
+        const pingData = `🏓 *Pong!* Server running!
+⏰ *Waktu server:* ${timeNow}
+✅ Bot Baileys Modular aktif.`;
+        // Step 1: AI intro
+        const intro = await getAICommandIntro('ping');
+        if (intro) await sock.sendMessage(chatId, { text: intro }, { quoted: msg });
+        // Step 2: Data teknis
+        await sock.sendMessage(chatId, { text: pingData });
         return;
     }
 
@@ -112,7 +142,11 @@ _Teman Cerdas & Asik di Whatsapp by Haikal_
 - *.vn [teks]* : Mengubah teks menjadi pesan suara/VN
 
 _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
-        await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
+        // Step 1: AI intro
+        const intro = await getAICommandIntro('help');
+        if (intro) await sock.sendMessage(chatId, { text: intro }, { quoted: msg });
+        // Step 2: Menu teknis
+        await sock.sendMessage(chatId, { text: helpText });
         return;
     }
 
@@ -161,9 +195,8 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
     } 
     // Jika Owner chat -> Cek apakah ada perintah Agent
     else if (!activeChats.has(chatId) && isOwner(chatId) && !isFromMe) {
-        // Owner selalu bisa ngobrol biasa, agent akan detect sendiri kalau ada command
         incrementReply();
-        await runAgent(sock, chatId, textMessage, msg);
+        await runAgent(sock, chatId, contextPrefix + textMessage, msg);
     }
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {
@@ -211,9 +244,9 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
             }
         }
 
-        // 3. Kirim pesan ke Haikaru
+        // 3. Kirim pesan ke Haikaru (dengan konteks prefix)
         incrementReply();
-        await processHaikaruChat(sock, chatId, textMessage, imageObj, msg);
+        await processHaikaruChat(sock, chatId, contextPrefix + textMessage, imageObj, msg);
     }
 }
 
