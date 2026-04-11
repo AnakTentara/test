@@ -1,8 +1,8 @@
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
-const { SYSTEM_PROMPT, HAIKARU_PERSONA } = require('./persona');
+const { SYSTEM_PROMPT } = require('./persona');
 const { chatMemories, haikaruMemories, saveHaikaruMemories, saveMemories } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
-const { incrementVN } = require('./agentHandler');
+const { incrementVN, getPersonaForChat } = require('./agentHandler');
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -274,7 +274,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg) {
     }
 
     const contextForAI = [
-        { role: "system", content: HAIKARU_PERSONA }
+        { role: "system", content: getPersonaForChat(chatId) }
     ];
 
     for (let i = 0; i < hHistory.messages.length - 1; i++) {
@@ -366,7 +366,7 @@ async function processHaikaruText(chatId, textMessage) {
     if (hHistory.messages.length > 15) hHistory.messages = hHistory.messages.slice(-15);
 
     const contextForAI = [
-        { role: "system", content: HAIKARU_PERSONA + "\n\n[PENTING: Balas dengan SATU kalimat singkat dan natural, tanpa emoji, karena jawabanmu akan dirender jadi suara Audio.]" },
+        { role: "system", content: getPersonaForChat(chatId) + "\n\n[PENTING: Balas dengan SATU kalimat singkat dan natural, tanpa emoji, karena jawabanmu akan dirender jadi suara Audio.]" },
         ...hHistory.messages
     ];
 

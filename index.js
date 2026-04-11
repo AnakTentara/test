@@ -6,6 +6,7 @@ const qrcode = require('qrcode-terminal');
 const { loadMemories, loadHaikaruMemories, loadDisabledChats } = require('./handlers/dbHandler');
 const { setSockSaran } = require('./handlers/aiChatHandler');
 const { handleIncomingMessage } = require('./handlers/messageRouting');
+const { loadChatPersonas } = require('./handlers/agentHandler');
 
 // Matikan log bailey yang berlebihan
 const logger = pino({ level: 'silent' });
@@ -54,6 +55,7 @@ async function createBot(sessionName, isShakaru) {
                 loadMemories();
                 loadHaikaruMemories();
                 loadDisabledChats();
+                loadChatPersonas();
             }
             console.log(`✅ Berhasil terautentikasi: ${botName}`);
         }

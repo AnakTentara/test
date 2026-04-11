@@ -13,6 +13,7 @@ const OWNER_NUMBERS = [
 const PERSONAS_DIR = path.join(__dirname, '..', 'config', 'personas');
 const ACTIVE_CONFIG = path.join(PERSONAS_DIR, 'active.yml');
 const DEFAULT_PERSONA = path.join(PERSONAS_DIR, 'default.txt');
+const CHAT_PERSONAS_FILE = path.join(__dirname, '..', 'config', 'chat-personas.yml');
 
 // ===== BOT STATS =====
 const botStats = {
@@ -24,6 +25,39 @@ const botStats = {
 function incrementReply() { botStats.totalReplies++; }
 function incrementVN() { botStats.totalVoiceNotes++; }
 
+// ===== CHAT PERSONA MAPPING =====
+let chatPersonaMap = {}; // chatId -> slot number
+
+function loadChatPersonas() {
+    try {
+        if (fs.existsSync(CHAT_PERSONAS_FILE)) {
+            const parsed = yaml.load(fs.readFileSync(CHAT_PERSONAS_FILE, 'utf8'));
+            chatPersonaMap = parsed?.assignments || {};
+            console.log(`[INFO] Chat persona assignments dimuat: ${Object.keys(chatPersonaMap).length} chat.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal muat chat-personas.yml:', err.message);
+    }
+}
+
+function saveChatPersonas() {
+    try {
+        fs.writeFileSync(CHAT_PERSONAS_FILE, yaml.dump({ assignments: chatPersonaMap }, { lineWidth: -1 }));
+    } catch (err) {
+        console.error('[ERROR] Gagal simpan chat-personas.yml:', err.message);
+    }
+}
+
+function assignPersonaToChat(chatId, slot) {
+    chatPersonaMap[chatId] = parseInt(slot);
+    saveChatPersonas();
+}
+
+function removePersonaAssignment(chatId) {
+    delete chatPersonaMap[chatId];
+    saveChatPersonas();
+}
+
 // ===== PERSONA MANAGER =====
 function getActiveSlot() {
     try {
@@ -32,14 +66,28 @@ function getActiveSlot() {
     } catch { return 1; }
 }
 
+/**
+ * Ambil persona untuk chat tertentu.
+ * Priority: per-chat assignment > global active slot > default.txt
+ */
+function getPersonaForChat(chatId) {
+    const slot = chatPersonaMap[chatId] || null;
+    if (slot) {
+        const slotFile = path.join(PERSONAS_DIR, `save-${slot}.txt`);
+        try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch {}
+    }
+    // Fallback ke default.txt (bukan active slot global)
+    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch {}
+    return 'Kamu adalah Haikaru, asisten AI yang ramah dan gaul.';
+}
+
+// Tetap ada untuk backward compat & agent switch global
 function getActivePersona() {
     const slot = getActiveSlot();
     const slotFile = path.join(PERSONAS_DIR, `save-${slot}.txt`);
-    try {
-        return fs.readFileSync(slotFile, 'utf8').trim();
-    } catch {
-        return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim();
-    }
+    try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch {}
+    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch {}
+    return 'Kamu adalah Haikaru, asisten AI yang ramah dan gaul.';
 }
 
 function setActiveSlot(slot) {
@@ -48,13 +96,12 @@ function setActiveSlot(slot) {
 }
 
 function updatePersonaSlot(slot, newContent) {
-    const slotFile = path.join(PERSONAS_DIR, `save-${slot}.txt`);
-    fs.writeFileSync(slotFile, newContent);
+    fs.writeFileSync(path.join(PERSONAS_DIR, `save-${slot}.txt`), newContent);
 }
 
 function readPersonaSlot(slot) {
     const file = path.join(PERSONAS_DIR, `save-${slot}.txt`);
-    try { return fs.readFileSync(file, 'utf8').trim(); } 
+    try { return fs.readFileSync(file, 'utf8').trim(); }
     catch { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); }
 }
 
@@ -69,12 +116,12 @@ const AGENT_TOOLS = [
         type: "function",
         function: {
             name: "update_persona_slot",
-            description: "Update atau tambahkan instruksi baru ke dalam persona Haikaru di slot tertentu. AI akan membaca persona lama lalu menambahkan/mengupdate instruksi baru.",
+            description: "Update atau tambahkan instruksi baru ke dalam persona Haikaru di slot tertentu. AI akan membaca persona lama lalu menambahkan/mengupdate instruksi baru secara alami.",
             parameters: {
                 type: "object",
                 properties: {
-                    slot: { type: "number", description: "Nomor slot persona (1, 2, atau 3)", enum: [1, 2, 3] },
-                    instruction: { type: "string", description: "Instruksi baru yang ingin ditambahkan atau diubah dalam persona" }
+                    slot: { type: "number", enum: [1, 2, 3], description: "Nomor slot persona (1, 2, atau 3)" },
+                    instruction: { type: "string", description: "Instruksi baru yang ingin ditambahkan atau diubah" }
                 },
                 required: ["slot", "instruction"]
             }
@@ -84,11 +131,11 @@ const AGENT_TOOLS = [
         type: "function",
         function: {
             name: "switch_persona_slot",
-            description: "Ganti slot persona aktif yang digunakan Haikaru",
+            description: "Ganti slot persona aktif global (default untuk chat yang tidak punya assignment)",
             parameters: {
                 type: "object",
                 properties: {
-                    slot: { type: "number", description: "Nomor slot yang ingin diaktifkan (1, 2, atau 3)", enum: [1, 2, 3] }
+                    slot: { type: "number", enum: [1, 2, 3], description: "Nomor slot yang ingin diaktifkan" }
                 },
                 required: ["slot"]
             }
@@ -97,12 +144,55 @@ const AGENT_TOOLS = [
     {
         type: "function",
         function: {
-            name: "reset_persona_slot",
-            description: "Reset slot persona ke default awal",
+            name: "assign_persona_to_chat",
+            description: "Tetapkan slot persona tertentu untuk satu chat atau grup spesifik",
             parameters: {
                 type: "object",
                 properties: {
-                    slot: { type: "number", description: "Nomor slot yang ingin di-reset (1, 2, atau 3)", enum: [1, 2, 3] }
+                    chatId: { type: "string", description: "Chat ID target, atau 'this' untuk chat saat ini" },
+                    slot: { type: "number", enum: [1, 2, 3], description: "Slot persona yang ingin digunakan" }
+                },
+                required: ["chatId", "slot"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "remove_persona_assignment",
+            description: "Hapus assignment persona dari chat tertentu (kembali ke default)",
+            parameters: {
+                type: "object",
+                properties: {
+                    chatId: { type: "string", description: "Chat ID target, atau 'this' untuk chat saat ini" }
+                },
+                required: ["chatId"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "reset_persona_slot",
+            description: "Reset slot persona ke konten default awal",
+            parameters: {
+                type: "object",
+                properties: {
+                    slot: { type: "number", enum: [1, 2, 3], description: "Nomor slot yang ingin di-reset" }
+                },
+                required: ["slot"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "read_persona_slot",
+            description: "Baca isi persona di slot tertentu, atau tampilkan persona aktif chat ini",
+            parameters: {
+                type: "object",
+                properties: {
+                    slot: { type: "number", enum: [0, 1, 2, 3], description: "Nomor slot (0 = persona chat saat ini)" }
                 },
                 required: ["slot"]
             }
@@ -112,33 +202,19 @@ const AGENT_TOOLS = [
         type: "function",
         function: {
             name: "get_bot_status",
-            description: "Dapatkan status bot saat ini: uptime, total pesan, total VN, info memori",
+            description: "Dapatkan status bot: uptime, total pesan dibalas, total VN, info assignment persona",
             parameters: { type: "object", properties: {}, required: [] }
         }
     },
     {
         type: "function",
         function: {
-            name: "clear_memory",
-            description: "Hapus memori percakapan Haikaru di chat ini atau semua chat",
-            parameters: {
-                type: "object",
-                properties: {
-                    target: { type: "string", description: "'this' untuk chat ini saja, 'all' untuk semua chat" }
-                },
-                required: ["target"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
             name: "disable_chat",
-            description: "Matikan AI di chat ID tertentu atau chat saat ini",
+            description: "Matikan AI di chat tertentu atau chat saat ini",
             parameters: {
                 type: "object",
                 properties: {
-                    chatId: { type: "string", description: "Chat ID yang ingin dimatikan, atau 'this' untuk chat saat ini" }
+                    chatId: { type: "string", description: "Chat ID target, atau 'this' untuk chat saat ini" }
                 },
                 required: ["chatId"]
             }
@@ -152,23 +228,9 @@ const AGENT_TOOLS = [
             parameters: {
                 type: "object",
                 properties: {
-                    chatId: { type: "string", description: "Chat ID yang ingin dihidupkan, atau 'this' untuk chat saat ini" }
+                    chatId: { type: "string", description: "Chat ID target, atau 'this' untuk chat saat ini" }
                 },
                 required: ["chatId"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "read_persona_slot",
-            description: "Baca isi persona di slot tertentu",
-            parameters: {
-                type: "object",
-                properties: {
-                    slot: { type: "number", description: "Nomor slot (1, 2, atau 3)", enum: [1, 2, 3] }
-                },
-                required: ["slot"]
             }
         }
     }
@@ -180,86 +242,88 @@ async function executeTool(toolName, args, chatId) {
         case 'update_persona_slot': {
             const { slot, instruction } = args;
             const currentPersona = readPersonaSlot(slot);
-            
-            // Minta AI untuk menggabungkan persona lama + instruksi baru
             const client = getLocalClient();
             const mergeCompletion = await client.chat.completions.create({
                 model: 'gemini-3.1-flash-lite-preview',
                 messages: [
-                    { role: 'system', content: 'Kamu adalah editor persona AI. Tugasmu adalah menggabungkan persona lama dengan instruksi baru secara natural dan kohesif. Hasilkan persona baru yang lengkap tanpa menghilangkan identitas aslinya. Output hanya teks persona baru saja, tanpa komentar apapun.' },
-                    { role: 'user', content: `PERSONA LAMA:\n${currentPersona}\n\nINSTRUKSI BARU YANG PERLU DITAMBAHKAN/DIUBAH:\n${instruction}\n\nHasilkan persona baru yang telah diupdate:` }
+                    { role: 'system', content: 'Kamu adalah editor persona AI. Gabungkan persona lama dengan instruksi baru secara natural. Output hanya teks persona baru saja, tanpa komentar.' },
+                    { role: 'user', content: `PERSONA LAMA:\n${currentPersona}\n\nINSTRUKSI BARU:\n${instruction}\n\nHasilkan persona yang telah diupdate:` }
                 ],
                 temperature: 0.6,
                 max_tokens: 1500
             });
-            
             const newPersona = mergeCompletion.choices[0].message.content.trim();
             updatePersonaSlot(slot, newPersona);
-            return `✅ Persona slot ${slot} berhasil diupdate dengan instruksi baru!`;
+            return `✅ Persona *Slot ${slot}* berhasil diupdate!\n\n_Instruksi baru:_ ${instruction}`;
         }
 
         case 'switch_persona_slot': {
-            const { slot } = args;
-            setActiveSlot(slot);
-            return `✅ Persona aktif sekarang menggunakan *Slot ${slot}*.`;
+            setActiveSlot(args.slot);
+            return `✅ Default persona global sekarang menggunakan *Slot ${args.slot}*.`;
+        }
+
+        case 'assign_persona_to_chat': {
+            const target = args.chatId === 'this' ? chatId : args.chatId;
+            assignPersonaToChat(target, args.slot);
+            return `✅ Chat *${target}* sekarang menggunakan *Persona Slot ${args.slot}*.`;
+        }
+
+        case 'remove_persona_assignment': {
+            const target = args.chatId === 'this' ? chatId : args.chatId;
+            removePersonaAssignment(target);
+            return `✅ Assignment persona dihapus dari *${target}*. Kembali ke default.`;
         }
 
         case 'reset_persona_slot': {
-            const { slot } = args;
-            resetSlotToDefault(slot);
-            return `✅ Persona slot ${slot} telah di-reset ke default.`;
+            resetSlotToDefault(args.slot);
+            return `✅ Persona *Slot ${args.slot}* telah di-reset ke default.`;
+        }
+
+        case 'read_persona_slot': {
+            if (args.slot === 0) {
+                const persona = getPersonaForChat(chatId);
+                const assignment = chatPersonaMap[chatId];
+                const label = assignment ? `Slot ${assignment}` : 'Default';
+                return `📄 *Persona aktif chat ini (${label}):*\n\n${persona}`;
+            }
+            const content = readPersonaSlot(args.slot);
+            return `📄 *Isi Persona Slot ${args.slot}:*\n\n${content}`;
         }
 
         case 'get_bot_status': {
             const uptimeMs = Date.now() - botStats.startTime;
-            const uptimeHrs = Math.floor(uptimeMs / 3600000);
-            const uptimeMins = Math.floor((uptimeMs % 3600000) / 60000);
-            const uptimeSecs = Math.floor((uptimeMs % 60000) / 1000);
-
-            const activeSlot = getActiveSlot();
-            const memoryChatCount = haikaruMemories.size;
+            const h = Math.floor(uptimeMs / 3600000);
+            const m = Math.floor((uptimeMs % 3600000) / 60000);
+            const s = Math.floor((uptimeMs % 60000) / 1000);
+            const assignmentCount = Object.keys(chatPersonaMap).length;
+            const memoryCount = haikaruMemories.size;
             const disabledCount = disabledChats.size;
 
-            return `🤖 *STATUS BOT HAIKARU*\n\n` +
-                `⏱️ *Uptime:* ${uptimeHrs}j ${uptimeMins}m ${uptimeSecs}d\n` +
-                `💬 *Total Pesan Dibalas:* ${botStats.totalReplies}\n` +
-                `🎤 *Total Voice Note Dikirim:* ${botStats.totalVoiceNotes}\n` +
-                `🧠 *Chat dalam Memori:* ${memoryChatCount}\n` +
-                `🔇 *Chat Dinonaktifkan:* ${disabledCount}\n` +
-                `🎭 *Persona Aktif:* Slot ${activeSlot}`;
-        }
+            const assignmentList = assignmentCount > 0
+                ? Object.entries(chatPersonaMap).map(([id, slot]) => `  - ${id}: Slot ${slot}`).join('\n')
+                : '  (tidak ada)';
 
-        case 'clear_memory': {
-            const { target } = args;
-            if (target === 'all') {
-                haikaruMemories.clear();
-                saveHaikaruMemories();
-                return `🧹 Semua memori Haikaru berhasil dihapus.`;
-            } else {
-                haikaruMemories.delete(chatId);
-                saveHaikaruMemories();
-                return `🧹 Memori chat ini berhasil dihapus.`;
-            }
+            return `🤖 *STATUS BOT HAIKARU*\n\n` +
+                `⏱️ *Uptime:* ${h}j ${m}m ${s}d\n` +
+                `💬 *Total Pesan Dibalas:* ${botStats.totalReplies}\n` +
+                `🎤 *Total Voice Note:* ${botStats.totalVoiceNotes}\n` +
+                `🧠 *Chat dalam Memori:* ${memoryCount}\n` +
+                `🔇 *Chat Dinonaktifkan:* ${disabledCount}\n` +
+                `🎭 *Chat dengan Persona Custom:*\n${assignmentList}`;
         }
 
         case 'disable_chat': {
             const target = args.chatId === 'this' ? chatId : args.chatId;
             disabledChats.add(target);
             saveDisabledChats();
-            return `🔇 AI dimatikan di chat *${target}*.`;
+            return `🔇 AI dimatikan di *${target}*.`;
         }
 
         case 'enable_chat': {
             const target = args.chatId === 'this' ? chatId : args.chatId;
             disabledChats.delete(target);
             saveDisabledChats();
-            return `🔊 AI dihidupkan di chat *${target}*.`;
-        }
-
-        case 'read_persona_slot': {
-            const { slot } = args;
-            const content = readPersonaSlot(slot);
-            return `📄 *Isi Persona Slot ${slot}:*\n\n${content}`;
+            return `🔊 AI dihidupkan di *${target}*.`;
         }
 
         default:
@@ -271,14 +335,14 @@ async function executeTool(toolName, args, chatId) {
 async function runAgent(sock, chatId, textMessage, msg) {
     try {
         const client = getLocalClient();
-        const activePersonaSummary = `(Slot aktif: ${getActiveSlot()})`;
+        const currentSlot = chatPersonaMap[chatId] || 'default';
 
         const completion = await client.chat.completions.create({
             model: 'gemini-3.1-flash-lite-preview',
             messages: [
                 {
                     role: 'system',
-                    content: `Kamu adalah Sistem Agent untuk bot WhatsApp Haikaru ${activePersonaSummary}. Tugasmu mengeksekusi perintah dari Owner bot. Deteksi perintah dari pesan Owner dan panggil tool yang tepat. Jika bukan perintah, balas dengan chat biasa sebagai Haikaru.`
+                    content: `Kamu adalah Sistem Agent bot WhatsApp Haikaru. Chat ini menggunakan persona: ${currentSlot}. Tugasmu mengeksekusi perintah dari Owner. Jika bukan perintah konfigurasi, balas sebagai Haikaru biasa.`
                 },
                 { role: 'user', content: textMessage }
             ],
@@ -291,18 +355,15 @@ async function runAgent(sock, chatId, textMessage, msg) {
         const response = completion.choices[0].message;
 
         if (response.tool_calls && response.tool_calls.length > 0) {
-            // Eksekusi semua tool yang dipanggil
             for (const tc of response.tool_calls) {
                 const toolName = tc.function.name;
                 const toolArgs = JSON.parse(tc.function.arguments);
-                
-                console.log(`\n[🤖 AGENT] Menjalankan tool: ${toolName}`, toolArgs);
+                console.log(`\n[🤖 AGENT] Eksekusi tool: ${toolName}`, toolArgs);
                 const result = await executeTool(toolName, toolArgs, chatId);
                 await sock.sendMessage(chatId, { text: result }, { quoted: msg });
             }
         } else {
-            // Bukan perintah agent, balas sebagai Haikaru biasa
-            const reply = response.content || 'Hmm, ada yang bisa gue bantu?';
+            const reply = response.content || 'Ada yang bisa gue bantu?';
             await sock.sendMessage(chatId, { text: reply }, { quoted: msg });
         }
     } catch (err) {
@@ -311,7 +372,6 @@ async function runAgent(sock, chatId, textMessage, msg) {
     }
 }
 
-// ===== OWNER CHECKER =====
 function isOwner(chatId) {
     return OWNER_NUMBERS.some(num => chatId.includes(num));
 }
@@ -320,6 +380,8 @@ module.exports = {
     runAgent,
     isOwner,
     getActivePersona,
+    getPersonaForChat,
+    loadChatPersonas,
     botStats,
     incrementReply,
     incrementVN

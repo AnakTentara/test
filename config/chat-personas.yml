@@ -1,0 +1,8 @@
+# Mapping Persona Per-Chat
+# Format: chatId: slot_number (1, 2, atau 3)
+# Chat yang tidak ada di sini akan menggunakan persona default
+# Contoh:
+# "6285123097680@s.whatsapp.net": 1
+# "120363404404808548@g.us": 2
+
+assignments: {}
