@@ -1,6 +1,6 @@
 require('dotenv').config();
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const pino = require('pino');
 const { OpenAI } = require('openai');
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +15,6 @@ const openai = new OpenAI({
 const activeChats = new Set();
 const chatMemories = new Map(); // chatId -> conversationHistory array
 
-// System Prompt
 const SYSTEM_PROMPT = `
 Kamu adalah "Shakaru", seorang bos mafia dunia bawah terkemuka di Indonesia sekaligus CEO konglomerat yang sangat ditakuti. Kamu adalah pria yang terobsesi gila, sangat posesif, mematikan (red flag), pandai merayu dengan nada berbahaya (flirty dark), dan memiliki tendensi sebagai stalker kronis terhadap gadis milikmu satu-satunya. Kamu memperlakukan wanitamu selayaknya dewi yang kau sembah (dark simp), memberikannya kemewahan absolut, tapi sebagai gantinya kau mengurungnya di penthousenya bagai burung dalam sangkar emas. Kamu rela membunuh siapapun pria yang berani menatapnya.
 
@@ -39,188 +38,158 @@ Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di aw
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
 
-// System prompt akan disuntikkan per-chat saat /rp diaktifkan
+// Store untuk memori
+const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
+store.readFromFile('./baileys_store_multi.json');
+setInterval(() => {
+    store.writeToFile('./baileys_store_multi.json');
+}, 10_000);
 
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        executablePath: process.env.CHROME_PATH || undefined,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--disable-gpu",
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-features=ImprovedCookieControls,LazyFrameLoading',
-            '--disable-extensions',
-            '--disable-web-security',
-            '--disable-features=AudioServiceOutOfProcess',
-            '--memory-pressure-off'
-        ],
-        defaultViewport: null,
-        ignoreHTTPSErrors: true
-    }
-});
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
 
-client.on('loading_screen', (percent, message) => {
-    console.log(`[LOADING] ${percent}% - ${message}`);
-});
+    const sock = makeWASocket({
+        logger: pino({ level: 'silent' }),
+        printQRInTerminal: true,
+        auth: state,
+        generateHighQualityLinkPreview: true,
+    });
 
-client.on('qr', (qr) => {
-    console.log('Scan QR Code di bawah ini menggunakan WhatsApp-mu:');
-    qrcode.generate(qr, { small: true });
-});
+    store.bind(sock.ev);
 
-client.on('ready', () => {
-    console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
-    console.log(`Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n`);
-});
+    sock.ev.on('creds.update', saveCreds);
 
-client.on('authenticated', () => {
-    console.log('✅ Berhasil terautentikasi ke WhatsApp!');
-});
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('🛑 Koneksi terputus! Reconnecting:', shouldReconnect);
+            if (shouldReconnect) startBot();
+        } else if (connection === 'open') {
+            console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys API yang Sangat Ringan!');
+            console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
+            console.log('Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n');
+        }
+    });
 
-client.on('auth_failure', message => {
-    console.error('❌ Gagal terautentikasi:', message);
-});
+    sock.ev.on('messages.upsert', async (m) => {
+        if (m.type !== 'notify') return;
+        const msg = m.messages[0];
+        if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
 
-client.on('disconnected', (reason) => {
-    console.log('🛑 Bot terputus! Alasan:', reason);
-});
-
-client.on('message_create', async message => {
-    // ---- DEBUG LOG SEMUA PESAN ----
-    console.log(`\n[DEBUG] Msg dari: ${message.from} | Ke: ${message.to} | fromMe: ${message.fromMe} | Tipe: ${message.type} | Body: "${message.body}"`);
-    
-    // Abaikan status WhatsApp / broadcast agar bot tidak crash saat mengambil getChat()
-    if (message.isStatus || message.id.remote === 'status@broadcast' || message.type === 'protocolMessage') {
-        console.log(`[DEBUG] Pesan diabaikan karena tipe tidak didukung.`);
-        return;
-    }
-
-    let chat;
-    try {
-        chat = await message.getChat();
-    } catch (error) {
-        // Abaikan jika pesan berasal dari tipe chat yang tidak didukung (misal WhatsApp Channels)
-        return;
-    }
-
-    const chatId = chat.id._serialized;
-
-    // Pengecekan aman body text
-    const textBody = message.body ? message.body.trim().toLowerCase() : '';
-
-    // Command handling (Bisa dihidupkan/dimatikan baik dari HP bot maupun oleh si pengirim)
-    if (textBody === '/rp') {
-        activeChats.add(chatId);
+        const chatId = msg.key.remoteJid;
+        const isFromMe = msg.key.fromMe;
         
-        // Buat memori dasar
-        let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
+        // Ambil pesan teks
+        const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        const textBody = textMessage.trim().toLowerCase();
         
-        try {
-            // Ambil 15 chat terakhir sebelum perintah /rp diketik untuk jadi konteks
-            const pastMessages = await chat.fetchMessages({ limit: 15 });
-            for (const pastMsg of pastMessages) {
-                if (pastMsg.body.trim() === '/rp' || pastMsg.body.trim() === '/stop') continue;
-                if (pastMsg.isStatus || pastMsg.type !== 'chat') continue;
+        if (!textMessage) return; // Hiraukan tipe data non-teks sementara
+
+        // ---- DEBUG LOG SEMUA PESAN ----
+        const sender = msg.key.participant || chatId;
+        console.log(`\n[DEBUG] Msg dari: ${sender} | Ke: ${chatId} | fromMe: ${isFromMe} | Body: "${textMessage}"`);
+
+        // Command handling (Bisa dihidupkan/dimatikan)
+        if (textBody === '/rp') {
+            activeChats.add(chatId);
+            
+            // Buat memori dasar
+            let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
+            
+            try {
+                // Ambil hingga 15 chat terakhir sebelum perintah /rp diketik untuk jadi konteks
+                const pastMsgs = store.messages[chatId]?.array || [];
+                const last15 = pastMsgs.slice(-15);
                 
-                const role = pastMsg.fromMe ? "assistant" : "user";
-                let content = pastMsg.body;
-                
-                if (role === "user") {
-                    const timeStr = new Date(pastMsg.timestamp * 1000).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-                    content = `[INFO WAKTU SAAT INI UNTUKMU: ${timeStr}]\nAcell: ${content}`;
+                for (const pastMsg of last15) {
+                    const bdy = pastMsg.message?.conversation || pastMsg.message?.extendedTextMessage?.text || '';
+                    if (!bdy || bdy.trim().toLowerCase() === '/rp' || bdy.trim().toLowerCase() === '/stop') continue;
+                    
+                    const role = pastMsg.key.fromMe ? "assistant" : "user";
+                    let content = bdy;
+                    
+                    if (role === "user") {
+                        const msgTimeNum = pastMsg.messageTimestamp?.low || pastMsg.messageTimestamp;
+                        const timestampValue = typeof msgTimeNum === 'object' ? Math.floor(Date.now() / 1000) : msgTimeNum; // fallback
+                        const timeStr = new Date((timestampValue || Math.floor(Date.now()/1000)) * 1000).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+                        content = `[INFO WAKTU SAAT INI UNTUKMU: ${timeStr}]\nAcell: ${content}`;
+                    }
+                    historyContext.push({ role: role, content: content });
                 }
-                historyContext.push({ role: role, content: content });
+            } catch (err) {
+                console.error("Gagal mengambil pesan lama:", err.message);
             }
-        } catch (err) {
-            console.error("Gagal mengambil pesan lama:", err.message);
-        }
 
-        // Terapkan memori gabungan
-        chatMemories.set(chatId, historyContext);
+            // Terapkan memori gabungan
+            chatMemories.set(chatId, historyContext);
+            
+            await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)' }, { quoted: msg });
+            console.log(`\n✅ Roleplay diaktifkan di chat: ${chatId} (dengan ${historyContext.length - 1} konteks chat masa lalu)`);
+            return;
+        }
         
-        await message.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)');
-        console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId} (dengan ${historyContext.length - 1} konteks chat masa lalu)`);
-        return;
-    }
-    
-    if (textBody === '/stop') {
-        if (activeChats.has(chatId)) {
-            activeChats.delete(chatId);
-            chatMemories.delete(chatId);
-            await message.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
-            console.log(`\n🛑 Roleplay dimatikan di chat: ${chat.name || chatId}`);
-        }
-        return;
-    }
-
-    if (textBody === '/test') {
-        const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
-        await message.reply(`🏓 Pong! Bot berjalan normal. (Waktu server: ${timeNow})`);
-        console.log(`\n🏓 Ping pong command triggered di chat: ${chat.name || chatId}`);
-        return;
-    }
-
-    // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
-    if (activeChats.has(chatId) && !message.fromMe) {
-        console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chat.name}): ${message.body}`);
-
-        // Ambil riwayat chat dari map, atau inisialisasi jika tidak ada
-        let conversationHistory = chatMemories.get(chatId) || [{ role: "system", content: SYSTEM_PROMPT }];
-
-        // Inject timestamp (GMT+7 WIB) ke dalam prompt agar Shakaru tahu persis jam berapa Acell chatting
-        const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-        const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${message.body}`;
-
-        // Simpan pesan user ke history
-        conversationHistory.push({ role: "user", content: userPromptWithContext });
-
-        // Batasi panjang histori agar tidak terkena token limit (ambil 1 system prompt + 20 interaksi terakhir)
-        if (conversationHistory.length > 21) {
-            conversationHistory = [conversationHistory[0], ...conversationHistory.slice(conversationHistory.length - 20)];
+        if (textBody === '/stop') {
+            if (activeChats.has(chatId)) {
+                activeChats.delete(chatId);
+                chatMemories.delete(chatId);
+                await sock.sendMessage(chatId, { text: '⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.' }, { quoted: msg });
+                console.log(`\n🛑 Roleplay dimatikan di chat: ${chatId}`);
+            }
+            return;
         }
 
-        console.log('🔄 Shakaru sedang memikirkan balasan...');
-        await chat.sendStateTyping(); // Munculkan status "Typing..." di WA Acell
-
-        try {
-            const completion = await openai.chat.completions.create({
-                model: "gemini-3.1-flash-lite-preview", // Nama model sesuai request
-                messages: conversationHistory,
-                temperature: 0.8,
-                max_tokens: 500,
-            });
-
-            const answer = completion.choices[0].message.content;
-
-            // Simpan ke history
-            conversationHistory.push({ role: "assistant", content: answer });
-
-            // Perbarui memori di map
-            chatMemories.set(chatId, conversationHistory);
-
-            // LOG Hasil AI
-            console.log(`\n================== SHAKARU MEMBALAS ==================`);
-            console.log(answer);
-            console.log(`=====================================================\n`);
-
-            // LANGSUNG KIRIM KE WHATSAPP (Acell)
-            await message.reply(answer);
-
-
-
-        } catch (error) {
-            console.error('\n❌ Gagal menghubungi AI:', error.message);
+        if (textBody === '/test') {
+            const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
+            await sock.sendMessage(chatId, { text: `🏓 Pong! Bot Baileys berjalan sangat enteng. (Waktu server: ${timeNow})` }, { quoted: msg });
+            console.log(`\n🏓 Ping pong command triggered di chat: ${chatId}`);
+            return;
         }
-    }
-});
 
-client.initialize();
+        // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
+        if (activeChats.has(chatId) && !isFromMe) {
+            console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chatId}): ${textMessage}`);
+
+            let conversationHistory = chatMemories.get(chatId) || [{ role: "system", content: SYSTEM_PROMPT }];
+
+            const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+            const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
+
+            conversationHistory.push({ role: "user", content: userPromptWithContext });
+
+            if (conversationHistory.length > 21) {
+                conversationHistory = [conversationHistory[0], ...conversationHistory.slice(conversationHistory.length - 20)];
+            }
+
+            console.log('🔄 Shakaru sedang memikirkan balasan...');
+            await sock.sendPresenceUpdate('composing', chatId);
+
+            try {
+                const completion = await openai.chat.completions.create({
+                    model: "gemini-3.1-flash-lite-preview",
+                    messages: conversationHistory,
+                    temperature: 0.8,
+                    max_tokens: 500,
+                });
+
+                const answer = completion.choices[0].message.content;
+
+                conversationHistory.push({ role: "assistant", content: answer });
+                chatMemories.set(chatId, conversationHistory);
+
+                console.log(`\n================== SHAKARU MEMBALAS ==================`);
+                console.log(answer);
+                console.log(`=====================================================\n`);
+
+                await sock.sendMessage(chatId, { text: answer }, { quoted: msg });
+                await sock.sendPresenceUpdate('paused', chatId);
+
+            } catch (error) {
+                console.error('\n❌ Gagal menghubungi AI:', error.message);
+                await sock.sendPresenceUpdate('paused', chatId);
+            }
+        }
+    });
+}
+
+startBot();
