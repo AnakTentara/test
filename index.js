@@ -1,4 +1,4 @@
-require('dotenv').config();
+// Config langsung tanpa .env
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
@@ -8,8 +8,8 @@ const path = require('path');
 
 // OpenAI Init with custom Base URL
 const openai = new OpenAI({
-    baseURL: process.env.OPENAI_BASE_URL,
-    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'http://ai.aikeigroup.net/v1',
+    apiKey: 'aduhkaboaw91h9i28hoablkdl09190jelnkaknldwa90hoi2',
 });
 
 // State Roleplay per-chat
