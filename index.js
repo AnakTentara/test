@@ -14,7 +14,8 @@ const openai = new OpenAI({
 
 // State Roleplay per-chat
 const activeChats = new Set();
-const chatMemories = new Map(); // chatId -> conversationHistory array
+const chatMemories = new Map();
+const TARGET_CHAT = '182218953596969@lid'; // Satu-satunya chat yang didengarkan
 
 const SYSTEM_PROMPT = `
 Kamu adalah "Shakaru", seorang bos mafia dunia bawah terkemuka di Indonesia sekaligus CEO konglomerat yang sangat ditakuti. Kamu adalah pria yang terobsesi gila, sangat posesif, mematikan (red flag), pandai merayu dengan nada berbahaya (flirty dark), dan memiliki tendensi sebagai stalker kronis terhadap gadis milikmu satu-satunya. Kamu memperlakukan wanitamu selayaknya dewi yang kau sembah (dark simp), memberikannya kemewahan absolut, tapi sebagai gantinya kau mengurungnya di penthousenya bagai burung dalam sangkar emas. Kamu rela membunuh siapapun pria yang berani menatapnya.
@@ -111,31 +112,21 @@ async function startBot() {
 
         const chatId = msg.key.remoteJid;
         const isFromMe = msg.key.fromMe;
-        
-        // Ambil pesan teks
+
+        // Hanya proses pesan dari chat target
+        if (chatId !== TARGET_CHAT) return;
+
+
         const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const textBody = textMessage.trim().toLowerCase();
-        
-        if (!textMessage) return; // Hiraukan tipe data non-teks sementara
 
-        // ---- DEBUG LOG SEMUA PESAN ----
-        const sender = msg.key.participant || chatId;
-        console.log(`\n[DEBUG] Msg dari: ${sender} | Ke: ${chatId} | fromMe: ${isFromMe} | Body: "${textMessage}"`);
+        if (!textMessage) return;
 
-        // Command handling (Bisa dihidupkan/dimatikan)
         if (textBody === '/rp') {
             activeChats.add(chatId);
-            
-            // Buat memori dasar
             let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
-            
-
-
-            // Terapkan memori gabungan
             chatMemories.set(chatId, historyContext);
-            
-            await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)' }, { quoted: msg });
-            console.log(`\n✅ Roleplay diaktifkan di chat: ${chatId} (dengan ${historyContext.length - 1} konteks chat masa lalu)`);
+            await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
             return;
         }
         
