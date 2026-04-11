@@ -2,6 +2,7 @@ const { activeChats, disabledChats, saveMemories, saveDisabledChats, chatMemorie
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
+const { runAgent, isOwner, incrementReply, incrementVN } = require('./agentHandler');
 
 let reactionCooldowns = new Map();
 
@@ -155,8 +156,15 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
     // =============== ROUTING LOGIC ===============
     // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
+        incrementReply();
         await processShakaruChat(sock, chatId, textMessage, imageObj, msg);
     } 
+    // Jika Owner chat -> Cek apakah ada perintah Agent
+    else if (!activeChats.has(chatId) && isOwner(chatId) && !isFromMe) {
+        // Owner selalu bisa ngobrol biasa, agent akan detect sendiri kalau ada command
+        incrementReply();
+        await runAgent(sock, chatId, textMessage, msg);
+    }
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {
         
@@ -190,20 +198,21 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
             try {
                 await sock.sendPresenceUpdate('recording', chatId);
                 console.log(`[🎤 VOICE NOTE] Deteksi NL request VN: "${textMessage.substring(0,30)}"`);
-                // Minta Haikaru buat kalimat singkat untuk di-VN-kan
                 const { processHaikaruText } = require('./aiChatHandler');
                 const shortReply = await processHaikaruText(chatId, textMessage);
                 const audioBuffer = await generateVoice(shortReply, 'id-ID-ArdiNeural');
                 await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+                incrementVN();
+                incrementReply();
                 console.log(`[🎤 VOICE NOTE] NL VN terkirim!`);
                 return;
             } catch (e) {
                 console.error('[🎤 VOICE NOTE] NL VN gagal:', e.message);
-                // Fallback ke teks biasa
             }
         }
 
         // 3. Kirim pesan ke Haikaru
+        incrementReply();
         await processHaikaruChat(sock, chatId, textMessage, imageObj, msg);
     }
 }

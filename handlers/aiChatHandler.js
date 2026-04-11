@@ -2,6 +2,7 @@ const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT, HAIKARU_PERSONA } = require('./persona');
 const { chatMemories, haikaruMemories, saveHaikaruMemories, saveMemories } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
+const { incrementVN } = require('./agentHandler');
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -235,6 +236,7 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
                 
                 console.log(`[🎤 VOICE NOTE] Mengirim OGG/OPUS ke WhatsApp...`);
                 await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+                incrementVN();
                 console.log(`[🎤 VOICE NOTE] Terkirim Sukses!`);
             } catch (err) {
                 console.error('[🎤 VOICE NOTE] Gagal kirim VN, fallback ke teks:', err);

@@ -1,0 +1,5 @@
+# Konfigurasi Persona Haikaru
+# active_slot: slot persona yang sedang aktif (1, 2, atau 3)
+# Untuk ganti slot: kirim "ganti persona ke slot 2" atau manual edit di sini
+
+active_slot: 1
