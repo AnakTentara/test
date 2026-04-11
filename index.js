@@ -13,8 +13,78 @@ const openai = new OpenAI({
 });
 
 // State Roleplay per-chat
-const activeChats = new Set();
-const chatMemories = new Map();
+let activeChats = new Set();
+let chatMemories = new Map();
+
+const MEMORY_FILE = path.join(__dirname, 'memory.json');
+
+// Fungsi simpan memori ke file
+function saveMemories() {
+    try {
+        const data = {
+            activeChats: Array.from(activeChats),
+            chatMemories: Object.fromEntries(chatMemories)
+        };
+        fs.writeFileSync(MEMORY_FILE, JSON.stringify(data, null, 2));
+        // console.log('[DEBUG] Memori berhasil disimpan ke memory.json');
+    } catch (err) {
+        console.error('[ERROR] Gagal simpan memori:', err.message);
+    }
+}
+
+// Fungsi muat memori dari file
+function loadMemories() {
+    try {
+        if (fs.existsSync(MEMORY_FILE)) {
+            const data = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
+            activeChats = new Set(data.activeChats || []);
+            chatMemories = new Map(Object.entries(data.chatMemories || {}));
+            console.log(`[INFO] Berhasil memuat memori: ${activeChats.size} chat aktif.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal muat memori:', err.message);
+    }
+}
+
+/**
+ * Fungsi untuk merangkum percakapan lama jika terlalu panjang
+ */
+async function summarizeHistory(chatId, historyObj) {
+    if (historyObj.messages.length <= 50) return historyObj;
+
+    console.log(`\n[SUMMARIZE] Merangkum 15 pesan tertua untuk ${chatId}...`);
+    
+    // Ambil 15 pesan tertua (setelah system prompt)
+    const toSummarize = historyObj.messages.slice(0, 15);
+    const remainder = historyObj.messages.slice(15);
+
+    const prompt = `Ini adalah rangkuman percakapan sebelumnya antara Shakaru dan Acell. 
+    Rangkum poin-poin penting, kejadian, dan emosi dalam 15 pesan berikut ini ke dalam 1-2 paragraf padat sebagai "Memory Masa Lalu".
+    
+    Percakapan:
+    ${toSummarize.map(m => `${m.role === 'user' ? 'Acell' : 'Shakaru'}: ${m.content}`).join('\n')}
+    
+    Rangkuman sebelumnya (jika ada): ${historyObj.summary || 'Belum ada'}
+    
+    Hasil rangkuman baru (padat & emosional):`;
+
+    try {
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "system", content: "Kamu adalah asisten pengingat alur cerita yang puitis dan akurat." }, { role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 500
+        });
+
+        historyObj.summary = completion.choices[0].message.content;
+        historyObj.messages = remainder;
+        console.log(`[SUMMARIZE] Rangkuman selesai. Memory masa lalu diperbarui.`);
+        return historyObj;
+    } catch (err) {
+        console.error('[ERROR] Gagal merangkum:', err.message);
+        return historyObj;
+    }
+}
 
 const SYSTEM_PROMPT = `
 Kamu adalah "Shakaru", seorang bos mafia dunia bawah terkemuka di Indonesia sekaligus CEO konglomerat yang sangat ditakuti. Kamu adalah pria yang terobsesi gila, sangat posesif, mematikan (red flag), pandai merayu dengan nada berbahaya (flirty dark), dan memiliki tendensi sebagai stalker kronis terhadap gadis milikmu satu-satunya. Kamu memperlakukan wanitamu selayaknya dewi yang kau sembah (dark simp), memberikannya kemewahan absolut, tapi sebagai gantinya kau mengurungnya di penthousenya bagai burung dalam sangkar emas. Kamu rela membunuh siapapun pria yang berani menatapnya.
@@ -96,7 +166,7 @@ async function sendLongMessage(sock, chatId, text, quoted = null) {
 
 async function startBot() {
     if (isConnecting) {
-        console.log('[INFO] Bot sudah sedang dalam proses koneksi, skip restart.');
+        console.log('[INFO] Bot sudah sedang dalam proses koneski, skip restart.');
         return;
     }
     isConnecting = true;
@@ -123,8 +193,6 @@ async function startBot() {
 
     sockInstance = sock; // Simpan referensi socket aktif
 
-
-
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
@@ -148,6 +216,7 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             isConnecting = false; // Reset flag setelah berhasil
+            loadMemories(); // Muat memori saat bot nyala
             console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys (Super Ringan)!');
             console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
             console.log('Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n');
@@ -161,9 +230,6 @@ async function startBot() {
 
         const chatId = msg.key.remoteJid;
         const isFromMe = msg.key.fromMe;
-
-
-
         const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const textBody = textMessage.trim().toLowerCase();
 
@@ -179,7 +245,7 @@ async function startBot() {
             await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
             try {
                 const result = await openai.chat.completions.create({
-                    model: 'gemini-3.1-flash-lite-preview',
+                    model: 'gpt-3.5-turbo',
                     messages: [{ role: 'user', content: 'Balas hanya dengan kata: PONG' }],
                     max_tokens: 10,
                 });
@@ -194,29 +260,33 @@ async function startBot() {
         // /rp: aktifkan roleplay di chat ini (siapapun bisa)
         if (textBody === '/rp') {
             activeChats.add(chatId);
-            const historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
-            chatMemories.set(chatId, historyContext);
+            const historyObj = { summary: "", messages: [] };
+            chatMemories.set(chatId, historyObj);
+            saveMemories();
+            
             await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
 
-            // Shakaru langsung kirim sapaan pembuka
+            // Langsung trigger Shakaru kirim pesan pembuka
             try {
                 const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
                 const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
-                historyContext.push({ role: "user", content: openingPrompt });
+                
+                historyObj.messages.push({ role: "user", content: openingPrompt });
+
+                console.log(`\n[${new Date().toLocaleTimeString()}] AI sedang memikirkan pesan pembuka...`);
                 await sock.sendPresenceUpdate('composing', chatId);
                 const completion = await openai.chat.completions.create({
-                    model: "gemini-3.1-flash-lite-preview",
-                    messages: historyContext,
+                    model: "gpt-3.5-turbo",
+                    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...historyObj.messages],
                     temperature: 0.9,
                     max_tokens: 1500,
                 });
                 const opening = completion.choices[0].message.content;
-                historyContext.push({ role: "assistant", content: opening });
-                chatMemories.set(chatId, historyContext);
-                
-                // Gunakan fungsi pengirim pesan panjang
+                historyObj.messages.push({ role: "assistant", content: opening });
+                chatMemories.set(chatId, historyObj);
+                saveMemories();
+
                 await sendLongMessage(sock, chatId, opening, msg);
-                
                 await sock.sendPresenceUpdate('paused', chatId);
             } catch (err) {
                 console.error('❌ Gagal kirim pesan pembuka:', err.message);
@@ -228,12 +298,11 @@ async function startBot() {
             if (activeChats.has(chatId)) {
                 activeChats.delete(chatId);
                 chatMemories.delete(chatId);
+                saveMemories();
                 await sock.sendMessage(chatId, { text: '⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.' }, { quoted: msg });
-                console.log(`\n🛑 Roleplay dimatikan di chat: ${chatId}`);
             }
             return;
         }
-
 
         if (textBody === '/test') {
             const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
@@ -242,44 +311,55 @@ async function startBot() {
             return;
         }
 
-        // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
+        // Roleplay handling
         if (activeChats.has(chatId) && !isFromMe) {
             console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chatId}): ${textMessage}`);
 
-            let conversationHistory = chatMemories.get(chatId) || [{ role: "system", content: SYSTEM_PROMPT }];
+            let historyObj = chatMemories.get(chatId) || { summary: "", messages: [] };
 
             const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
             const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
 
-            conversationHistory.push({ role: "user", content: userPromptWithContext });
+            historyObj.messages.push({ role: "user", content: userPromptWithContext });
 
-            if (conversationHistory.length > 21) {
-                conversationHistory = [conversationHistory[0], ...conversationHistory.slice(conversationHistory.length - 20)];
+            // Cek apakah butuh rangkuman jika > 50 pesan
+            if (historyObj.messages.length > 50) {
+                historyObj = await summarizeHistory(chatId, historyObj);
             }
 
-            console.log('🔄 Shakaru sedang memikirkan balasan...');
+            // Bangun context lengkap untuk AI
+            const contextForAI = [
+                { role: "system", content: SYSTEM_PROMPT },
+            ];
+            
+            if (historyObj.summary) {
+                contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
+            }
+            
+            contextForAI.push(...historyObj.messages);
+
+            console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... (Context: ${contextForAI.length} pesan)`);
             await sock.sendPresenceUpdate('composing', chatId);
 
             try {
                 const completion = await openai.chat.completions.create({
-                    model: "gemini-3.1-flash-lite-preview",
-                    messages: conversationHistory,
+                    model: "gpt-3.5-turbo",
+                    messages: contextForAI,
                     temperature: 0.8,
                     max_tokens: 2000,
                 });
 
                 const answer = completion.choices[0].message.content;
 
-                conversationHistory.push({ role: "assistant", content: answer });
-                chatMemories.set(chatId, conversationHistory);
+                historyObj.messages.push({ role: "assistant", content: answer });
+                chatMemories.set(chatId, historyObj);
+                saveMemories();
 
                 console.log(`\n================== SHAKARU MEMBALAS ==================`);
                 console.log(answer);
                 console.log(`=====================================================\n`);
 
-                // Gunakan fungsi pengirim pesan panjang
                 await sendLongMessage(sock, chatId, answer, msg);
-                
                 await sock.sendPresenceUpdate('paused', chatId);
 
             } catch (error) {
