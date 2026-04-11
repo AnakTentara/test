@@ -230,10 +230,15 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
             // KIRIM SEBAGAI VOICE NOTE (PTT)
             try {
                 await sock.sendPresenceUpdate('recording', chatId);
+                console.log(`[🎤 VOICE NOTE] Sedang merender audio Shakaru...`);
                 const audioBuffer = await generateVoice(answer, 'id-ID-ArdiNeural');
-                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mp4', ptt: true }, { quoted: msg });
+                
+                console.log(`[🎤 VOICE NOTE] Selesai render! Mengirim audio/mpeg ke WhatsApp...`);
+                // Menggunakan audio/mpeg agar buffer MP3 dari engine bisa dimainkan WA
+                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mpeg', ptt: true }, { quoted: msg });
+                console.log(`[🎤 VOICE NOTE] Terkirim Sukses!`);
             } catch (err) {
-                console.error('Gagal kirim VN, fallback ke teks:', err);
+                console.error('[🎤 VOICE NOTE] Gagal kirim VN, fallback ke teks:', err);
                 await sendLongMessage(sock, chatId, answer, msg);
             }
         } else {

@@ -120,10 +120,14 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
 
         try {
             await sock.sendPresenceUpdate('recording', chatId);
+            console.log(`[🎤 VOICE NOTE] Sedang merender audio Haikaru...`);
             const audioBuffer = await generateVoice(query, 'id-ID-ArdiNeural');
-            await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mp4', ptt: true }, { quoted: msg });
+            
+            console.log(`[🎤 VOICE NOTE] Menguapkan file ke WA...`);
+            await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mpeg', ptt: true }, { quoted: msg });
+            console.log(`[🎤 VOICE NOTE] Terkirim!`);
         } catch (e) {
-            console.error('TTS Error:', e.message);
+            console.error('[🎤 VOICE NOTE] TTS Error:', e.message);
             await sock.sendMessage(chatId, { text: '❌ Gagal membuat voice note.' }, { quoted: msg });
         }
         return;
