@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { OpenAI } = require('openai');
 const fs = require('fs');
@@ -38,12 +38,7 @@ Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di aw
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
 
-// Store untuk memori
-const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
-store.readFromFile('./baileys_store_multi.json');
-setInterval(() => {
-    store.writeToFile('./baileys_store_multi.json');
-}, 10_000);
+
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
@@ -55,7 +50,7 @@ async function startBot() {
         generateHighQualityLinkPreview: true,
     });
 
-    store.bind(sock.ev);
+
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -97,29 +92,7 @@ async function startBot() {
             // Buat memori dasar
             let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
             
-            try {
-                // Ambil hingga 15 chat terakhir sebelum perintah /rp diketik untuk jadi konteks
-                const pastMsgs = store.messages[chatId]?.array || [];
-                const last15 = pastMsgs.slice(-15);
-                
-                for (const pastMsg of last15) {
-                    const bdy = pastMsg.message?.conversation || pastMsg.message?.extendedTextMessage?.text || '';
-                    if (!bdy || bdy.trim().toLowerCase() === '/rp' || bdy.trim().toLowerCase() === '/stop') continue;
-                    
-                    const role = pastMsg.key.fromMe ? "assistant" : "user";
-                    let content = bdy;
-                    
-                    if (role === "user") {
-                        const msgTimeNum = pastMsg.messageTimestamp?.low || pastMsg.messageTimestamp;
-                        const timestampValue = typeof msgTimeNum === 'object' ? Math.floor(Date.now() / 1000) : msgTimeNum; // fallback
-                        const timeStr = new Date((timestampValue || Math.floor(Date.now()/1000)) * 1000).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-                        content = `[INFO WAKTU SAAT INI UNTUKMU: ${timeStr}]\nAcell: ${content}`;
-                    }
-                    historyContext.push({ role: role, content: content });
-                }
-            } catch (err) {
-                console.error("Gagal mengambil pesan lama:", err.message);
-            }
+
 
             // Terapkan memori gabungan
             chatMemories.set(chatId, historyContext);
