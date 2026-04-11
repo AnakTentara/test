@@ -48,7 +48,7 @@ async function generateVoice(text, voiceType = DEFAULT_CEO_VOICE) {
  * Mendeteksi apakah di dalam chat terdapat format roleplay italic _menggenggam tangannya_
  */
 function hasPhysicalAction(text) {
-    const actionRegex = /_.*?_|\*.*?\*/g; // Jika ada italic atau bold, anggap ada action / RP kompleks
+    const actionRegex = /_.*?_|\*.*?\*/gs; // Tambahkan flag 's' agar .* cocok dengan newline (\n)
     return actionRegex.test(text);
 }
 
