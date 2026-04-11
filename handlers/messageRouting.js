@@ -138,11 +138,11 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         const pingData = `🏓 *Pong!* Server running!
 ⏰ *Waktu server:* ${timeNow}
 ✅ Bot Baileys Modular aktif.`;
-        // Step 1: AI intro
         const intro = await getAICommandIntro('ping');
-        if (intro) await sock.sendMessage(chatId, { text: intro }, { quoted: msg });
-        // Step 2: Data teknis
-        await sock.sendMessage(chatId, { text: pingData });
+        const fullMsg = intro ? `${intro}
+
+${pingData}` : pingData;
+        await sock.sendMessage(chatId, { text: fullMsg }, { quoted: msg });
         return;
     }
 
@@ -163,11 +163,11 @@ _Teman Cerdas & Asik di Whatsapp by Haikal_
 - *.vn [teks]* : Mengubah teks menjadi pesan suara/VN
 
 _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
-        // Step 1: AI intro
         const intro = await getAICommandIntro('help');
-        if (intro) await sock.sendMessage(chatId, { text: intro }, { quoted: msg });
-        // Step 2: Menu teknis
-        await sock.sendMessage(chatId, { text: helpText });
+        const fullMsg = intro ? `${intro}
+
+${helpText}` : helpText;
+        await sock.sendMessage(chatId, { text: fullMsg }, { quoted: msg });
         return;
     }
 
