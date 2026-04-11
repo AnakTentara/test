@@ -1,7 +1,7 @@
 const { activeChats, disabledChats, saveMemories, saveDisabledChats, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction } = require('./geminiRotator');
-const { generateVoice } = require('./voiceHandler');
+const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
 
 let reactionCooldowns = new Map();
 
@@ -129,9 +129,10 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
         return;
     }
 
-    // COMMAND: .vn [teks]
-    if (textBody.startsWith('.vn ')) {
-        const query = textBody.substring(4).trim();
+    // COMMAND: .vn [teks] — Toleran terhadap spasi misal ". vn halo"
+    const normalizedBody = textBody.replace(/^\. +/, '.').replace(/\s+/g, ' ');
+    if (normalizedBody.toLowerCase().startsWith('.vn ')) {
+        const query = normalizedBody.substring(4).trim();
         if (!query) {
             await sock.sendMessage(chatId, { text: '❌ Format salah. Contoh: .vn halo semua' }, { quoted: msg });
             return;
@@ -139,15 +140,14 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
 
         try {
             await sock.sendPresenceUpdate('recording', chatId);
-            console.log(`[🎤 VOICE NOTE] Sedang merender audio Haikaru...`);
+            console.log(`[🎤 VOICE NOTE] Merender audio: "${query.substring(0,30)}..."`);
             const audioBuffer = await generateVoice(query, 'id-ID-ArdiNeural');
             
-            console.log(`[🎤 VOICE NOTE] Menguapkan file ke WA...`);
-            await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mpeg', ptt: true }, { quoted: msg });
-            console.log(`[🎤 VOICE NOTE] Terkirim!`);
+            await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+            console.log(`[🎤 VOICE NOTE] Terkirim (OGG/OPUS)!`);
         } catch (e) {
             console.error('[🎤 VOICE NOTE] TTS Error:', e.message);
-            await sock.sendMessage(chatId, { text: '❌ Gagal membuat voice note.' }, { quoted: msg });
+            await sock.sendMessage(chatId, { text: '❌ Gagal membuat voice note. Coba lagi.' }, { quoted: msg });
         }
         return;
     }
@@ -185,7 +185,25 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
             }).catch(()=>{});
         }
 
-        // 2. Kirim pesan ke Haikaru
+        // 2. Cek apakah ini request VN secara natural language
+        if (textMessage && isNaturalVNRequest(textMessage)) {
+            try {
+                await sock.sendPresenceUpdate('recording', chatId);
+                console.log(`[🎤 VOICE NOTE] Deteksi NL request VN: "${textMessage.substring(0,30)}"`);
+                // Minta Haikaru buat kalimat singkat untuk di-VN-kan
+                const { processHaikaruText } = require('./aiChatHandler');
+                const shortReply = await processHaikaruText(chatId, textMessage);
+                const audioBuffer = await generateVoice(shortReply, 'id-ID-ArdiNeural');
+                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+                console.log(`[🎤 VOICE NOTE] NL VN terkirim!`);
+                return;
+            } catch (e) {
+                console.error('[🎤 VOICE NOTE] NL VN gagal:', e.message);
+                // Fallback ke teks biasa
+            }
+        }
+
+        // 3. Kirim pesan ke Haikaru
         await processHaikaruChat(sock, chatId, textMessage, imageObj, msg);
     }
 }

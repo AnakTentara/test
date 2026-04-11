@@ -2,57 +2,100 @@ const { EdgeTTS } = require('node-edge-tts');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
 
-// id-ID-ArdiNeural = Cowok berat/tegas (CEO)
-// id-ID-GadisNeural = Cewek remaja/halus
-const DEFAULT_CEO_VOICE = 'id-ID-ArdiNeural';
-const DEFAULT_HAIKARU_VOICE = 'id-ID-ArdiNeural'; 
+// Set ffmpeg binary dari ffmpeg-static
+ffmpeg.setFfmpegPath(ffmpegPath);
 
-async function generateVoice(text, voiceType = DEFAULT_CEO_VOICE) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const tts = new EdgeTTS({
-                voice: voiceType,
-                lang: 'id-ID',
-                pitch: '-10%', // Buat suara lebih deep/berat sedikit untuk Shakaru
-                rate: '-5%',   // Agak sedikit pelan supaya lebih mengintimidasi
-                volume: '+0%'
-            });
+// Suara tersedia:
+// id-ID-ArdiNeural = Cowok berat/tegas (CEO/Mafia)
+// id-ID-GadisNeural = TIDAK ADA (ini bukan nama resmi Edge TTS)
+// Suara wanita resmi: id-ID-ArdiNeural (pria), gunakan en-US-AnaNeural untuk cewek
+const SHAKARU_VOICE = 'id-ID-ArdiNeural';
 
-            // Gunakan pitch normal jika pakai mode Haikaru
-            if (voiceType === DEFAULT_HAIKARU_VOICE && arguments.length === 2 && arguments[1] === DEFAULT_HAIKARU_VOICE) {
-                // reset pitch (if needed to differentiate haikaru vs shakaru)
-            }
+/**
+ * Convert MP3 buffer ke OGG/OPUS buffer untuk WhatsApp PTT
+ */
+function convertMp3ToOgg(mp3Buffer) {
+    return new Promise((resolve, reject) => {
+        const tempMp3 = path.join(__dirname, '..', `tmp_${crypto.randomBytes(4).toString('hex')}.mp3`);
+        const tempOgg = path.join(__dirname, '..', `tmp_${crypto.randomBytes(4).toString('hex')}.ogg`);
 
-            // Temp file
-            const tempFileName = `tts_${crypto.randomBytes(4).toString('hex')}.mp3`;
-            const tempFilePath = path.join(__dirname, '..', tempFileName);
+        fs.writeFileSync(tempMp3, mp3Buffer);
 
-            await tts.ttsPromise(text, tempFilePath);
-
-            // Baca hasil file nya jadi buffer
-            const buffer = fs.readFileSync(tempFilePath);
-            
-            // Hapus file sementaranya biar ngga nyampah
-            fs.unlinkSync(tempFilePath);
-
-            resolve(buffer);
-        } catch (error) {
-            console.error('Error Generating Voice:', error);
-            reject(error);
-        }
+        ffmpeg(tempMp3)
+            .audioCodec('libopus')
+            .audioChannels(1)
+            .audioFrequency(48000)
+            .format('ogg')
+            .on('end', () => {
+                const oggBuffer = fs.readFileSync(tempOgg);
+                // Cleanup temp files
+                try { fs.unlinkSync(tempMp3); } catch {}
+                try { fs.unlinkSync(tempOgg); } catch {}
+                resolve(oggBuffer);
+            })
+            .on('error', (err) => {
+                try { fs.unlinkSync(tempMp3); } catch {}
+                try { fs.unlinkSync(tempOgg); } catch {}
+                reject(err);
+            })
+            .save(tempOgg);
     });
 }
 
 /**
- * Mendeteksi apakah di dalam chat terdapat format roleplay italic _menggenggam tangannya_
+ * Generate voice note sebagai OGG/OPUS buffer (siap kirim ke WA)
+ */
+async function generateVoice(text, voice = SHAKARU_VOICE) {
+    const tts = new EdgeTTS({
+        voice: voice,
+        lang: 'id-ID',
+        pitch: voice === SHAKARU_VOICE ? '-5Hz' : 'default',
+        rate: voice === SHAKARU_VOICE ? '-5%' : 'default',
+    });
+
+    const tempMp3Path = path.join(__dirname, '..', `tts_${crypto.randomBytes(4).toString('hex')}.mp3`);
+
+    try {
+        // Step 1: Generate MP3 dari Edge TTS
+        await tts.ttsPromise(text, tempMp3Path);
+        const mp3Buffer = fs.readFileSync(tempMp3Path);
+        try { fs.unlinkSync(tempMp3Path); } catch {}
+
+        // Step 2: Convert MP3 → OGG/OPUS
+        const oggBuffer = await convertMp3ToOgg(mp3Buffer);
+        return oggBuffer;
+    } catch (error) {
+        try { fs.unlinkSync(tempMp3Path); } catch {}
+        throw error;
+    }
+}
+
+/**
+ * Mendeteksi apakah pesan mengandung aksi fisik RP (italic/bold)
  */
 function hasPhysicalAction(text) {
-    const actionRegex = /_.*?_|\*.*?\*/gs; // Tambahkan flag 's' agar .* cocok dengan newline (\n)
-    return actionRegex.test(text);
+    return /_.*?_|\*.*?\*/gs.test(text);
+}
+
+/**
+ * Deteksi apakah pesan adalah permintaan VN secara natural language
+ * Contoh: "kirim vn dong", "bisa vn nggak", "voice note dulu"
+ */
+function isNaturalVNRequest(text) {
+    const lower = text.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+    const patterns = [
+        /\bvn\b/, /voice\s*note/, /kirim\s*suara/, /suara\s*dong/, /vn\s*dong/,
+        /bisa\s*vn/, /pake\s*vn/, /audio\s*dong/, /ngomong\s*langsung/
+    ];
+    return patterns.some(p => p.test(lower));
 }
 
 module.exports = {
     generateVoice,
-    hasPhysicalAction
+    hasPhysicalAction,
+    isNaturalVNRequest,
+    SHAKARU_VOICE
 };

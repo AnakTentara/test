@@ -233,9 +233,8 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
                 console.log(`[🎤 VOICE NOTE] Sedang merender audio Shakaru...`);
                 const audioBuffer = await generateVoice(answer, 'id-ID-ArdiNeural');
                 
-                console.log(`[🎤 VOICE NOTE] Selesai render! Mengirim audio/mpeg ke WhatsApp...`);
-                // Menggunakan audio/mpeg agar buffer MP3 dari engine bisa dimainkan WA
-                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mpeg', ptt: true }, { quoted: msg });
+                console.log(`[🎤 VOICE NOTE] Mengirim OGG/OPUS ke WhatsApp...`);
+                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
                 console.log(`[🎤 VOICE NOTE] Terkirim Sukses!`);
             } catch (err) {
                 console.error('[🎤 VOICE NOTE] Gagal kirim VN, fallback ke teks:', err);
@@ -355,9 +354,39 @@ async function forceShakaruContinue(sock, chatId, msg) {
     }
 }
 
+/**
+ * Hanya mengembalikan teks Haikaru tanpa mengirim ke WhatsApp
+ * Digunakan untuk natural language VN (teks → audio → kirim)
+ */
+async function processHaikaruText(chatId, textMessage) {
+    let hHistory = haikaruMemories.get(chatId) || { messages: [] };
+    hHistory.messages.push({ role: "user", content: textMessage });
+    if (hHistory.messages.length > 15) hHistory.messages = hHistory.messages.slice(-15);
+
+    const contextForAI = [
+        { role: "system", content: HAIKARU_PERSONA + "\n\n[PENTING: Balas dengan SATU kalimat singkat dan natural, tanpa emoji, karena jawabanmu akan dirender jadi suara Audio.]" },
+        ...hHistory.messages
+    ];
+
+    const localClient = getLocalClient();
+    const completion = await localClient.chat.completions.create({
+        model: "gemini-3.1-flash-lite-preview",
+        messages: contextForAI,
+        temperature: 0.9,
+        max_tokens: 200,
+    });
+
+    const answer = completion.choices[0].message.content;
+    hHistory.messages.push({ role: "assistant", content: answer });
+    haikaruMemories.set(chatId, hHistory);
+    saveHaikaruMemories();
+    return answer;
+}
+
 module.exports = {
     setSockSaran,
     processShakaruChat,
     processHaikaruChat,
+    processHaikaruText,
     forceShakaruContinue
 };
