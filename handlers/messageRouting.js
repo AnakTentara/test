@@ -15,13 +15,27 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const chatId = msg.key.remoteJid;
 
     let textMessage = '';
+    let imageObj = null;
+
     if (messageType === 'conversation') {
         textMessage = msg.message.conversation;
     } else if (messageType === 'extendedTextMessage') {
         textMessage = msg.message.extendedTextMessage.text;
+    } else if (messageType === 'imageMessage') {
+        textMessage = msg.message.imageMessage.caption || '';
+        try {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: require('pino')({ level: 'silent' }) });
+            imageObj = {
+                data: buffer.toString('base64'),
+                mimeType: msg.message.imageMessage.mimetype || 'image/jpeg'
+            };
+        } catch (e) {
+            console.error('[ERROR] Gagal download gambar:', e.message);
+        }
     }
 
-    if (!textMessage) return;
+    if (!textMessage && !imageObj) return;
 
     const textBody = textMessage.trim();
 
@@ -62,27 +76,20 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     // COMMAND: .help / /help
     if (textBody === '.help' || textBody === '/help') {
-        const helpText = `🤖 *AI-HAIKARU & SHAKARU SYSTEM* 🤖
-_Bot Hybrid Baileys by Haikal_
+        const helpText = `🤖 *AI-HAIKARU SYSTEM* 🤖
+_Teman Cerdas & Asik di Whatsapp by Haikal_
 
-*✨ Fitur AI-Haikaru (Publik)*:
-1. Teman ngobrol cerdas & gaul (Tinggal chat aja langsung).
-2. Auto-Reaction Emoji di setiap chatmu.
-3. Otak AI mengingat 15 chat terakhirmu biar obrolan nyambung.
+*✨ Fitur Utama*:
+1. Tanya, ngobrol, curhat santai (AI yang asik ngertiin kamu).
+2. Tahu konteks & mengingat chat mu sebelumnya.
+3. Bereaksi Emoji otomatis padamu.
+4. Bisa melihat dan menganalisis Gambar yang kamu kirim!
 
-*🔪 Fitur Shakaru (Private RP)*:
-1. Mode Mafia agresif khusus Nona Acell.
-2. Sistem Saran membeberkan 3 opsi tindakan.
-3. Infinite Memory (Mengingat seluruh kejadian dari awal).
-
-*📜 Daftar Command*:
+*📜 Daftar Command Publik*:
 - *.help* : Menampilkan menu ini
 - *.ping* : Cek server VPS
-- */rp* : Masuk ke mode Shakaru (Khusus Acell)
-- */stop* : Mematikan mode Shakaru (Kembali ke Haikaru)
-- */continue* : Meminta Shakaru lanjut bertindak (Khusus Mode RP)
 
-_Catatan: Fitur Stiker & Gambar sedang dalam tahap perakitan server!_`;
+_Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
         await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
         return;
     }
@@ -104,7 +111,7 @@ _Catatan: Fitur Stiker & Gambar sedang dalam tahap perakitan server!_`;
     // =============== ROUTING LOGIC ===============
     // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
-        await processShakaruChat(sock, chatId, textMessage, msg);
+        await processShakaruChat(sock, chatId, textMessage, imageObj, msg);
     } 
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {
@@ -112,7 +119,7 @@ _Catatan: Fitur Stiker & Gambar sedang dalam tahap perakitan server!_`;
         const now = Date.now();
         const lastReact = reactionCooldowns.get(chatId) || 0;
         
-        if (now - lastReact > 30000) { 
+        if (now - lastReact > 30000 && textMessage) { // Bereaksi hanya kalau ada konteks teks 
             reactionCooldowns.set(chatId, now);
             analyzeEmojiReaction(textMessage).then(async (emoji) => {
                 if (emoji && (emoji.length > 0 && emoji.length < 10) && !emoji.includes('{')) { 
@@ -122,7 +129,7 @@ _Catatan: Fitur Stiker & Gambar sedang dalam tahap perakitan server!_`;
         }
 
         // 2. Kirim pesan ke Haikaru
-        await processHaikaruChat(sock, chatId, textMessage, msg);
+        await processHaikaruChat(sock, chatId, textMessage, imageObj, msg);
     }
 }
 

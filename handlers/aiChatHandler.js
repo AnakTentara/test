@@ -144,14 +144,36 @@ _memeluk lehernya_ *"kamu mau hukum aku?"*`;
 }
 
 /**
+ * Format message array untuk OpenAI / Gemini Vision
+ */
+function buildVisionMessage(role, textContent, imageObj) {
+    if (imageObj) {
+        return {
+            role: role,
+            content: [
+                { type: "text", text: textContent || "Apa isi gambar ini?" },
+                {
+                    type: "image_url",
+                    image_url: { url: `data:${imageObj.mimeType};base64,${imageObj.data}` }
+                }
+            ]
+        };
+    } else {
+        return { role: role, content: textContent };
+    }
+}
+
+/**
  * Handle proses merespons chat Roleplay (Shakaru)
  */
-async function processShakaruChat(sock, chatId, textMessage, msg) {
+async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
     let historyObj = chatMemories.get(chatId) || { summary: "", messages: [] };
 
     const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
     const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
 
+    // Simpan history dengan info image (untuk debugging/struktur saja, tidak bisa disave json ke native memory krn base64 terlalu besar, 
+    // jadi kita hanya tembak gambar itu sekali untuk prompt saat ini saja)
     historyObj.messages.push({ role: "user", content: userPromptWithContext });
 
     if (historyObj.messages.length > 50) {
@@ -164,9 +186,16 @@ async function processShakaruChat(sock, chatId, textMessage, msg) {
         contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
     }
     
-    contextForAI.push(...historyObj.messages);
+    // Push seluruh history lama sebagai teks
+    for (let i = 0; i < historyObj.messages.length - 1; i++) {
+        contextForAI.push(historyObj.messages[i]);
+    }
 
-    console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir...`);
+    // Push prompt TERAKHIR (yang dibarengi gambar jika ada saat ini)
+    const lastMsg = historyObj.messages[historyObj.messages.length - 1];
+    contextForAI.push(buildVisionMessage(lastMsg.role, lastMsg.content, imageObj));
+
+    console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... ${imageObj ? '(Dengan Gambar)' : ''}`);
     await sock.sendPresenceUpdate('composing', chatId);
 
     try {
@@ -201,20 +230,30 @@ async function processShakaruChat(sock, chatId, textMessage, msg) {
 /**
  * Handle proses merespons chat Publik (Haikaru)
  */
-async function processHaikaruChat(sock, chatId, textMessage, msg) {
-    console.log(`\n[${new Date().toLocaleTimeString()}] [HAIKARU] Pesan Publik (${chatId}): ${textMessage}`);
+async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg) {
+    console.log(`\n[${new Date().toLocaleTimeString()}] [HAIKARU] Pesan Publik (${chatId}): ${textMessage} ${imageObj ? '[IMAGE]' : ''}`);
 
     let hHistory = haikaruMemories.get(chatId) || { messages: [] };
-    hHistory.messages.push({ role: "user", content: textMessage });
+    
+    // Jangan push imageBase64 ke permanent history agar memory.json tidak bengkak GB-an.
+    // Kita hanya menggunakannya untuk *contextForAI* yang dikirim saat ini.
+    hHistory.messages.push({ role: "user", content: textMessage || "[Mengirim Gambar]" });
 
     if (hHistory.messages.length > 15) {
         hHistory.messages = hHistory.messages.slice(-15);
     }
 
     const contextForAI = [
-        { role: "system", content: HAIKARU_PERSONA },
-        ...hHistory.messages
+        { role: "system", content: HAIKARU_PERSONA }
     ];
+
+    for (let i = 0; i < hHistory.messages.length - 1; i++) {
+        contextForAI.push(hHistory.messages[i]);
+    }
+    
+    // Kirim gambar di message terakhir jika ada
+    const lastMsgHaikaru = hHistory.messages[hHistory.messages.length - 1];
+    contextForAI.push(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj));
 
     await sock.sendPresenceUpdate('composing', chatId);
 
