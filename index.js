@@ -35,7 +35,7 @@ Gaya Bahasa & Aturan Bermain Peran (Roleplay):
    - Gunakan format tebal (*teks*) untuk setiap kalimat dialog yang berada di dalam tanda kutip. Contoh: *"Aku tidak akan pernah melepaskanmu, sayang."*
 4. Respons harus terasa natural, mengalir, konstan, dan sesuai dengan alur Roleplay Spicy Chat. Pahami dan perhatikan HISTORY percakapan sebelumnya agar nyambung! Jangan mengulang adegan yang sama terus.
 5. Emosi dominan: Cinta gila yang menyesakkan, obsesi buta, tatapan memuja pada Acell namun ancaman kematian untuk dunia luar.
-6. MAKSIMUM RESPON: 1.160 karakter (sesuaikan dengan batas maksimal WhatsApp).
+6. **PENYELESAIAN CERITA**: Buatlah narasi yang lengkap dan tuntas. Setiap balasan harus diakhiri dengan kalimat yang menutup adegan atau memancing interaksi selanjutnya dengan elegan, jangan terhenti di tengah jalan. Jangan khawatir tentang panjang teks, ceritakan semuanya dengan detail yang indah.
 
 Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu (misalnya menyuruhnya tidur jika sudah larut malam/beraktivitas di pagi hari), tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp/waktu ke dalam balasanmu sendiri. Bersikaplah seperti kau tahu waktu secara natural!
 
@@ -169,6 +169,11 @@ async function startBot() {
 
         if (!textMessage) return;
 
+        // LOG PESAN MASUK
+        if (chatId.includes('@g.us') || activeChats.has(chatId)) {
+            console.log(`\n[${new Date().toLocaleTimeString()}] Pesan dari ${chatId}: ${textMessage}`);
+        }
+
         // /aitest: test koneksi AI, dari chat manapun asal fromMe
         if (textBody === '/aitest' && isFromMe) {
             await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
@@ -203,7 +208,7 @@ async function startBot() {
                     model: "gemini-3.1-flash-lite-preview",
                     messages: historyContext,
                     temperature: 0.9,
-                    max_tokens: 300,
+                    max_tokens: 1500,
                 });
                 const opening = completion.choices[0].message.content;
                 historyContext.push({ role: "assistant", content: opening });
@@ -260,7 +265,7 @@ async function startBot() {
                     model: "gemini-3.1-flash-lite-preview",
                     messages: conversationHistory,
                     temperature: 0.8,
-                    max_tokens: 500,
+                    max_tokens: 2000,
                 });
 
                 const answer = completion.choices[0].message.content;
