@@ -8,7 +8,7 @@ const path = require('path');
 
 // OpenAI Init with custom Base URL
 const openai = new OpenAI({
-    baseURL: 'http://ai.aikeigroup.net/v1/chat/completions',
+    baseURL: 'https://ai.aikeigroup.net/v1/chat/completions',
     apiKey: 'aduhkaboaw91h9i28hoablkdl09190jelnkaknldwa90hoi2',
 });
 
