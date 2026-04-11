@@ -312,6 +312,51 @@ async function startBot() {
             return;
         }
 
+        // /continue: melanjutkan alur cerita terakhir tanpa input user
+        if (textBody === '/continue') {
+            if (!activeChats.has(chatId)) {
+                await sock.sendMessage(chatId, { text: '❌ Mode Roleplay belum aktif. Ketik /rp untuk memulai.' }, { quoted: msg });
+                return;
+            }
+
+            const historyObj = chatMemories.get(chatId);
+            if (!historyObj || historyObj.messages.length === 0) {
+                await sock.sendMessage(chatId, { text: '❌ Tidak ada riwayat untuk dilanjutkan. Ketik /rp.' }, { quoted: msg });
+                return;
+            }
+
+            console.log(`\n[${new Date().toLocaleTimeString()}] Meminta AI untuk melanjutkan alur cerita di ${chatId}...`);
+            await sock.sendPresenceUpdate('composing', chatId);
+
+            // Bikin context temporer untuk men-trigger kelanjutan
+            const contextForAI = [{ role: "system", content: SYSTEM_PROMPT }];
+            if (historyObj.summary) {
+                contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
+            }
+            contextForAI.push(...historyObj.messages);
+            contextForAI.push({ role: "user", content: '[SISTEM: Lanjutkan alur cerita terakhirmu sebagai Shakaru secara natural. Jangan mengulangi apa yang sudah dikatakan, langsung saja lakukan aksi atau dialog untuk menyambung suasana sebelumnya.]' });
+
+            try {
+                const completion = await openai.chat.completions.create({
+                    model: "gemini-3.1-flash-lite-preview",
+                    messages: contextForAI,
+                    temperature: 0.8,
+                    max_tokens: 2000,
+                });
+
+                const answer = completion.choices[0].message.content;
+                historyObj.messages.push({ role: "assistant", content: answer });
+                chatMemories.set(chatId, historyObj);
+                saveMemories();
+
+                await sendLongMessage(sock, chatId, answer, msg);
+            } catch (error) {
+                console.error('❌ Gagal continue:', error.message);
+            }
+            await sock.sendPresenceUpdate('paused', chatId);
+            return;
+        }
+
         // Roleplay handling
         if (activeChats.has(chatId) && !isFromMe) {
             console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chatId}): ${textMessage}`);
