@@ -42,6 +42,7 @@ Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai 
 
 
 let isConnecting = false;
+let sockInstance = null;
 
 async function startBot() {
     if (isConnecting) {
@@ -49,6 +50,12 @@ async function startBot() {
         return;
     }
     isConnecting = true;
+
+    // Tutup socket lama jika ada (agar tidak spam event)
+    if (sockInstance) {
+        try { sockInstance.ws.close(); } catch (_) {}
+        sockInstance = null;
+    }
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
 
     const sock = makeWASocket({
@@ -56,6 +63,8 @@ async function startBot() {
         auth: state,
         generateHighQualityLinkPreview: true,
     });
+
+    sockInstance = sock; // Simpan referensi socket aktif
 
 
 
