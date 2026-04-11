@@ -113,14 +113,65 @@ Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di aw
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
 
+// Global State & Sockets
+const connectingStates = { 'baileys_auth_info': false, 'baileys_auth_info_saran': false };
+let sockShakaru = null;
+let sockSaran = null;
 
+/**
+ * Fungsi Background: Membuat Opsi Balasan untuk Acell
+ */
+async function generateAndSendSuggestions(chatId, historyObj) {
+    if (!sockSaran) {
+        console.log('[SISTEM SARAN] Socket Saran belum terhubung. Saran dibatalkan - Pastikan sudah scan QR Bot ke-2.');
+        return;
+    }
 
-let isConnecting = false;
-let sockInstance = null;
+    try {
+        console.log(`\n[SISTEM SARAN] Sedang merumuskan 3 opsi balasan untuk Acell...`);
+        
+        // Ambil 6 pesan terakhir buat konteks asisten
+        const lastFewMessages = historyObj.messages.slice(-6); 
+        const contextText = lastFewMessages.map(m => `${m.role === 'user' ? 'Acell' : 'Shakaru'}: ${m.content}`).join('\n');
+
+        const promptSaran = `Kamu adalah Asisten Roleplay Acell. Berdasarkan alur cerita terbaru, berikan 3 opsi teks balasan yang bisa Acell copy-paste untuk merespon Shakaru.
+Konsep balasan:
+1. Opsi Pasrah/Submisif
+2. Opsi Berontak/Menolak (baik secara fisik atau verbal)
+3. Opsi Menggoda/Merayu Balik (Flirty/Nakal)
+
+Konteks Terakhir:
+${contextText}
+
+Format Output Wajib (Hanya berikan teks ini):
+*1. Mode Pasrah/Submisif:*
+(teks opsi 1)
+
+*2. Mode Menolak/Berontak:*
+(teks opsi 2)
+
+*3. Mode Merayu Balik:*
+(teks opsi 3)`;
+
+        const completion = await openai.chat.completions.create({
+            model: "gemini-3.1-flash-lite-preview",
+            messages: [{ role: "user", content: promptSaran }],
+            temperature: 0.8,
+            max_tokens: 800,
+        });
+
+        const suggestionsText = completion.choices[0].message.content;
+
+        // Kirim pakai Bot 2 (Sistem Saran) ke nomor Acell
+        await sockSaran.sendMessage(chatId, { text: `🌸 *SARAN BALASAN (SYSTEM)* 🌸\n\n${suggestionsText}` });
+        console.log(`[SISTEM SARAN] Berhasil mengirim opsi ke Acell.`);
+    } catch (err) {
+        console.error('[SISTEM SARAN] Error membuat saran:', err.message);
+    }
+}
 
 /**
  * Fungsi untuk memotong pesan panjang (max 1160 karakter)
- * Agar stabil dan enak dibaca di WhatsApp.
  */
 async function sendLongMessage(sock, chatId, text, quoted = null) {
     const MAX_LENGTH = 1160;
@@ -143,13 +194,9 @@ async function sendLongMessage(sock, chatId, text, quoted = null) {
         let nIndex = remainder.lastIndexOf('\n', MAX_LENGTH);
         let sIndex = remainder.lastIndexOf(' ', MAX_LENGTH);
 
-        if (pIndex !== -1 && pIndex > MAX_LENGTH * 0.4) {
-            splitIndex = pIndex;
-        } else if (nIndex !== -1 && nIndex > MAX_LENGTH * 0.4) {
-            splitIndex = nIndex;
-        } else if (sIndex !== -1 && sIndex > MAX_LENGTH * 0.4) {
-            splitIndex = sIndex;
-        }
+        if (pIndex !== -1 && pIndex > MAX_LENGTH * 0.4) splitIndex = pIndex;
+        else if (nIndex !== -1 && nIndex > MAX_LENGTH * 0.4) splitIndex = nIndex;
+        else if (sIndex !== -1 && sIndex > MAX_LENGTH * 0.4) splitIndex = sIndex;
 
         chunks.push(remainder.substring(0, splitIndex).trim());
         remainder = remainder.substring(splitIndex).trim();
@@ -165,22 +212,24 @@ async function sendLongMessage(sock, chatId, text, quoted = null) {
     }
 }
 
-async function startBot() {
-    if (isConnecting) {
-        console.log('[INFO] Bot sudah sedang dalam proses koneski, skip restart.');
+/**
+ * Core Bot Initialization
+ */
+async function createBot(sessionName, isShakaru) {
+    if (connectingStates[sessionName]) {
+        console.log(`[INFO] Bot ${sessionName} sedang proses koneksi, skip.`);
         return;
     }
-    isConnecting = true;
+    connectingStates[sessionName] = true;
 
-    // Tutup socket lama jika ada (agar tidak spam event)
-    if (sockInstance) {
-        try { sockInstance.ws.close(); } catch (_) { }
-        sockInstance = null;
-    }
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
-
+    const { state, saveCreds } = await useMultiFileAuthState(sessionName);
     const { version } = await fetchLatestBaileysVersion();
-    console.log(`[INFO] Baileys version: ${version.join('.')}`);
+    
+    const botName = isShakaru ? '🎭 SHAKARU' : '🤖 SISTEM SARAN';
+
+    if (isShakaru) {
+        console.log(`[INFO] Baileys version: ${version.join('.')}`);
+    }
 
     const sock = makeWASocket({
         version,
@@ -192,7 +241,11 @@ async function startBot() {
         keepAliveIntervalMs: 10000,
     });
 
-    sockInstance = sock; // Simpan referensi socket aktif
+    if (isShakaru) {
+        sockShakaru = sock;
+    } else {
+        sockSaran = sock;
+    }
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -201,219 +254,240 @@ async function startBot() {
 
         // Tampilkan QR Code secara manual di terminal
         if (qr) {
-            console.log('\n📱 Scan QR Code di bawah ini menggunakan WhatsApp-mu (Linked Devices):');
+            console.log(`\n📱 Scan QR Code di bawah ini untuk ${botName} (Linked Devices):`);
             qrcode.generate(qr, { small: true });
         }
 
         if (connection === 'close') {
-            isConnecting = false; // Reset flag agar bisa reconnect
+            connectingStates[sessionName] = false;
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('🛑 Koneksi terputus! Reconnecting:', shouldReconnect);
+            console.log(`🛑 Koneksi terputus (${botName})! Reconnecting:`, shouldReconnect);
             if (shouldReconnect) {
-                console.log('[INFO] Menunggu 5 detik sebelum reconnect...');
-                setTimeout(() => startBot(), 5000);
+                setTimeout(() => createBot(sessionName, isShakaru), 5000);
             } else {
-                console.log('[INFO] Bot di-logout. Hapus folder baileys_auth_info dan restart manual.');
+                console.log(`[INFO] ${botName} di-logout. Silakan hapus folder ${sessionName} dan restart.`);
             }
         } else if (connection === 'open') {
-            isConnecting = false; // Reset flag setelah berhasil
-            loadMemories(); // Muat memori saat bot nyala
-            console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys (Super Ringan)!');
-            console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
-            console.log('Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n');
+            connectingStates[sessionName] = false;
+            if (isShakaru) loadMemories(); // Muat memori hanya dari instance utama
+            console.log(`✅ Berhasil terautentikasi: ${botName}`);
         }
     });
 
-    sock.ev.on('messages.upsert', async (m) => {
-        if (m.type !== 'notify') return;
-        const msg = m.messages[0];
-        if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
+    // Hanya Bot Shakaru yang memproses dan membalas pesan masuk
+    if (isShakaru) {
+        sock.ev.on('messages.upsert', async (m) => {
+            if (m.type !== 'notify') return;
+            const msg = m.messages[0];
+            if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
 
-        const chatId = msg.key.remoteJid;
-        const isFromMe = msg.key.fromMe;
-        const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        const textBody = textMessage.trim().toLowerCase();
+            const chatId = msg.key.remoteJid;
+            const isFromMe = msg.key.fromMe;
+            const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+            const textBody = textMessage.trim().toLowerCase();
 
-        if (!textMessage) return;
+            if (!textMessage) return;
 
-        // LOG PESAN MASUK
-        if (chatId.includes('@g.us') || activeChats.has(chatId)) {
-            console.log(`\n[${new Date().toLocaleTimeString()}] Pesan dari ${chatId}: ${textMessage}`);
-        }
-
-        // /aitest: test koneksi AI, dari chat manapun asal fromMe
-        if (textBody === '/aitest' && isFromMe) {
-            await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
-            try {
-                const result = await openai.chat.completions.create({
-                    model: 'gemini-3.1-flash-lite-preview',
-                    messages: [{ role: 'user', content: 'Balas hanya dengan kata: PONG' }],
-                    max_tokens: 10,
-                });
-                const reply = result.choices[0].message.content;
-                await sock.sendMessage(chatId, { text: `✅ AI OK! Respon: ${reply}` }, { quoted: msg });
-            } catch (err) {
-                await sock.sendMessage(chatId, { text: `❌ AI Error: ${err.message}` }, { quoted: msg });
+            // LOG PESAN MASUK
+            if (chatId.includes('@g.us') || activeChats.has(chatId)) {
+                console.log(`\n[${new Date().toLocaleTimeString()}] Pesan dari ${chatId}: ${textMessage}`);
             }
-            return;
-        }
 
-        // /rp: aktifkan roleplay di chat ini (siapapun bisa)
-        if (textBody === '/rp') {
-            activeChats.add(chatId);
-            const historyObj = { summary: "", messages: [] };
-            chatMemories.set(chatId, historyObj);
-            saveMemories();
+            // COMMAND: /aitest
+            if (textBody === '/aitest' && isFromMe) {
+                await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
+                try {
+                    const result = await openai.chat.completions.create({
+                        model: 'gemini-3.1-flash-lite-preview',
+                        messages: [{ role: 'user', content: 'Balas hanya dengan kata: PONG' }],
+                        max_tokens: 10,
+                    });
+                    const reply = result.choices[0].message.content;
+                    await sock.sendMessage(chatId, { text: `✅ AI OK! Respon: ${reply}` }, { quoted: msg });
+                } catch (err) {
+                    await sock.sendMessage(chatId, { text: `❌ AI Error: ${err.message}` }, { quoted: msg });
+                }
+                return;
+            }
 
-            await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
+            // COMMAND: /rp
+            if (textBody === '/rp') {
+                activeChats.add(chatId);
+                const historyObj = { summary: "", messages: [] };
+                chatMemories.set(chatId, historyObj);
+                saveMemories();
+                
+                await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
 
-            // Langsung trigger Shakaru kirim pesan pembuka
-            try {
-                const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-                const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
+                try {
+                    const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+                    const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
+                    
+                    historyObj.messages.push({ role: "user", content: openingPrompt });
 
-                historyObj.messages.push({ role: "user", content: openingPrompt });
+                    console.log(`\n[${new Date().toLocaleTimeString()}] AI sedang memikirkan pesan pembuka...`);
+                    await sock.sendPresenceUpdate('composing', chatId);
+                    const completion = await openai.chat.completions.create({
+                        model: "gemini-3.1-flash-lite-preview",
+                        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...historyObj.messages],
+                        temperature: 0.9,
+                        max_tokens: 1500,
+                    });
+                    const opening = completion.choices[0].message.content;
+                    historyObj.messages.push({ role: "assistant", content: opening });
+                    chatMemories.set(chatId, historyObj);
+                    saveMemories();
 
-                console.log(`\n[${new Date().toLocaleTimeString()}] AI sedang memikirkan pesan pembuka...`);
+                    await sendLongMessage(sock, chatId, opening, msg);
+                    await sock.sendPresenceUpdate('paused', chatId);
+                    
+                    // Generate saran background task
+                    generateAndSendSuggestions(chatId, historyObj);
+                } catch (err) {
+                    console.error('❌ Gagal kirim pesan pembuka:', err.message);
+                }
+                return;
+            }
+
+            // COMMAND: /stop
+            if (textBody === '/stop') {
+                if (activeChats.has(chatId)) {
+                    activeChats.delete(chatId);
+                    chatMemories.delete(chatId);
+                    saveMemories();
+                    await sock.sendMessage(chatId, { text: '⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.' }, { quoted: msg });
+                }
+                return;
+            }
+
+            // COMMAND: /test
+            if (textBody === '/test') {
+                const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
+                await sock.sendMessage(chatId, { text: `🏓 Pong! Bot Baileys berjalan sangat enteng. (Waktu server: ${timeNow})` }, { quoted: msg });
+                return;
+            }
+
+            // COMMAND: /continue
+            if (textBody === '/continue') {
+                if (!activeChats.has(chatId)) {
+                    await sock.sendMessage(chatId, { text: '❌ Mode Roleplay belum aktif. Ketik /rp untuk memulai.' }, { quoted: msg });
+                    return;
+                }
+
+                const historyObj = chatMemories.get(chatId);
+                if (!historyObj || historyObj.messages.length === 0) {
+                    await sock.sendMessage(chatId, { text: '❌ Tidak ada riwayat untuk dilanjutkan. Ketik /rp.' }, { quoted: msg });
+                    return;
+                }
+
+                console.log(`\n[${new Date().toLocaleTimeString()}] Meminta AI untuk melanjutkan alur cerita di ${chatId}...`);
                 await sock.sendPresenceUpdate('composing', chatId);
-                const completion = await openai.chat.completions.create({
-                    model: "gemini-3.1-flash-lite-preview",
-                    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...historyObj.messages],
-                    temperature: 0.9,
-                    max_tokens: 1500,
-                });
-                const opening = completion.choices[0].message.content;
-                historyObj.messages.push({ role: "assistant", content: opening });
-                chatMemories.set(chatId, historyObj);
-                saveMemories();
 
-                await sendLongMessage(sock, chatId, opening, msg);
-                await sock.sendPresenceUpdate('paused', chatId);
-            } catch (err) {
-                console.error('❌ Gagal kirim pesan pembuka:', err.message);
-            }
-            return;
-        }
+                const contextForAI = [{ role: "system", content: SYSTEM_PROMPT }];
+                if (historyObj.summary) {
+                    contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
+                }
+                contextForAI.push(...historyObj.messages);
+                contextForAI.push({ role: "user", content: '[SISTEM: Lanjutkan alur cerita terakhirmu sebagai Shakaru secara natural. Jangan mengulangi apa yang sudah dikatakan, langsung saja lakukan aksi atau dialog untuk menyambung suasana sebelumnya.]' });
 
-        if (textBody === '/stop') {
-            if (activeChats.has(chatId)) {
-                activeChats.delete(chatId);
-                chatMemories.delete(chatId);
-                saveMemories();
-                await sock.sendMessage(chatId, { text: '⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.' }, { quoted: msg });
-            }
-            return;
-        }
+                try {
+                    const completion = await openai.chat.completions.create({
+                        model: "gemini-3.1-flash-lite-preview",
+                        messages: contextForAI,
+                        temperature: 0.8,
+                        max_tokens: 2000,
+                    });
 
-        if (textBody === '/test') {
-            const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
-            await sock.sendMessage(chatId, { text: `🏓 Pong! Bot Baileys berjalan sangat enteng. (Waktu server: ${timeNow})` }, { quoted: msg });
-            console.log(`\n🏓 Ping pong command triggered di chat: ${chatId}`);
-            return;
-        }
+                    const answer = completion.choices[0].message.content;
+                    historyObj.messages.push({ role: "assistant", content: answer });
+                    chatMemories.set(chatId, historyObj);
+                    saveMemories();
 
-        // /continue: melanjutkan alur cerita terakhir tanpa input user
-        if (textBody === '/continue') {
-            if (!activeChats.has(chatId)) {
-                await sock.sendMessage(chatId, { text: '❌ Mode Roleplay belum aktif. Ketik /rp untuk memulai.' }, { quoted: msg });
+                    await sendLongMessage(sock, chatId, answer, msg);
+                    await sock.sendPresenceUpdate('paused', chatId);
+
+                    // Generate saran background task
+                    generateAndSendSuggestions(chatId, historyObj);
+                } catch (error) {
+                    console.error('❌ Gagal continue:', error.message);
+                }
                 return;
             }
 
-            const historyObj = chatMemories.get(chatId);
-            if (!historyObj || historyObj.messages.length === 0) {
-                await sock.sendMessage(chatId, { text: '❌ Tidak ada riwayat untuk dilanjutkan. Ketik /rp.' }, { quoted: msg });
-                return;
+            // CORE ROLEPLAY MESSAGE HANDLING
+            if (activeChats.has(chatId) && !isFromMe) {
+                console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chatId}): ${textMessage}`);
+
+                let historyObj = chatMemories.get(chatId) || { summary: "", messages: [] };
+
+                const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+                const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
+
+                historyObj.messages.push({ role: "user", content: userPromptWithContext });
+
+                // Evaluasi Summarize jika kepanjangan
+                if (historyObj.messages.length > 50) {
+                    historyObj = await summarizeHistory(chatId, historyObj);
+                }
+
+                const contextForAI = [
+                    { role: "system", content: SYSTEM_PROMPT },
+                ];
+                
+                if (historyObj.summary) {
+                    contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
+                }
+                
+                contextForAI.push(...historyObj.messages);
+
+                console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... (Context: ${contextForAI.length} pesan)`);
+                await sock.sendPresenceUpdate('composing', chatId);
+
+                try {
+                    const completion = await openai.chat.completions.create({
+                        model: "gemini-3.1-flash-lite-preview",
+                        messages: contextForAI,
+                        temperature: 0.8,
+                        max_tokens: 2000,
+                    });
+
+                    const answer = completion.choices[0].message.content;
+
+                    historyObj.messages.push({ role: "assistant", content: answer });
+                    chatMemories.set(chatId, historyObj);
+                    saveMemories();
+
+                    console.log(`\n================== SHAKARU MEMBALAS ==================`);
+                    console.log(answer);
+                    console.log(`=====================================================\n`);
+
+                    await sendLongMessage(sock, chatId, answer, msg);
+                    await sock.sendPresenceUpdate('paused', chatId);
+
+                    // Panggil Sistem Saran setelah Shakaru berhasil membalas
+                    generateAndSendSuggestions(chatId, historyObj);
+
+                } catch (error) {
+                    console.error('\n❌ Gagal menghubungi AI:', error.message);
+                    await sock.sendPresenceUpdate('paused', chatId);
+                }
             }
-
-            console.log(`\n[${new Date().toLocaleTimeString()}] Meminta AI untuk melanjutkan alur cerita di ${chatId}...`);
-            await sock.sendPresenceUpdate('composing', chatId);
-
-            // Bikin context temporer untuk men-trigger kelanjutan
-            const contextForAI = [{ role: "system", content: SYSTEM_PROMPT }];
-            if (historyObj.summary) {
-                contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
-            }
-            contextForAI.push(...historyObj.messages);
-            contextForAI.push({ role: "user", content: '[SISTEM: Lanjutkan alur cerita terakhirmu sebagai Shakaru secara natural. Jangan mengulangi apa yang sudah dikatakan, langsung saja lakukan aksi atau dialog untuk menyambung suasana sebelumnya.]' });
-
-            try {
-                const completion = await openai.chat.completions.create({
-                    model: "gemini-3.1-flash-lite-preview",
-                    messages: contextForAI,
-                    temperature: 0.8,
-                    max_tokens: 2000,
-                });
-
-                const answer = completion.choices[0].message.content;
-                historyObj.messages.push({ role: "assistant", content: answer });
-                chatMemories.set(chatId, historyObj);
-                saveMemories();
-
-                await sendLongMessage(sock, chatId, answer, msg);
-            } catch (error) {
-                console.error('❌ Gagal continue:', error.message);
-            }
-            await sock.sendPresenceUpdate('paused', chatId);
-            return;
-        }
-
-        // Roleplay handling
-        if (activeChats.has(chatId) && !isFromMe) {
-            console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chatId}): ${textMessage}`);
-
-            let historyObj = chatMemories.get(chatId) || { summary: "", messages: [] };
-
-            const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-            const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
-
-            historyObj.messages.push({ role: "user", content: userPromptWithContext });
-
-            // Cek apakah butuh rangkuman jika > 50 pesan
-            if (historyObj.messages.length > 50) {
-                historyObj = await summarizeHistory(chatId, historyObj);
-            }
-
-            // Bangun context lengkap untuk AI
-            const contextForAI = [
-                { role: "system", content: SYSTEM_PROMPT },
-            ];
-
-            if (historyObj.summary) {
-                contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
-            }
-
-            contextForAI.push(...historyObj.messages);
-
-            console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... (Context: ${contextForAI.length} pesan)`);
-            await sock.sendPresenceUpdate('composing', chatId);
-
-            try {
-                const completion = await openai.chat.completions.create({
-                    model: "gemini-3.1-flash-lite-preview",
-                    messages: contextForAI,
-                    temperature: 0.8,
-                    max_tokens: 2000,
-                });
-
-                const answer = completion.choices[0].message.content;
-
-                historyObj.messages.push({ role: "assistant", content: answer });
-                chatMemories.set(chatId, historyObj);
-                saveMemories();
-
-                console.log(`\n================== SHAKARU MEMBALAS ==================`);
-                console.log(answer);
-                console.log(`=====================================================\n`);
-
-                await sendLongMessage(sock, chatId, answer, msg);
-                await sock.sendPresenceUpdate('paused', chatId);
-
-            } catch (error) {
-                console.error('\n❌ Gagal menghubungi AI:', error.message);
-                await sock.sendPresenceUpdate('paused', chatId);
-            }
-        }
-    });
+        });
+    }
 }
 
-startBot();
+/**
+ * Inisialisasi Kedua Bot Secara Berurutan
+ */
+async function startDualBots() {
+    console.log('🔄 Memulai Bot Shakaru (Roleplay Utama)...');
+    await createBot('baileys_auth_info', true);
+
+    // Beri jeda agar QR code tidak tertimpa di terminal, lalu inisialisasi bot asisten
+    setTimeout(() => {
+        console.log('\n🔄 Memulai Bot Asisten Saran (Pemberi Pilihan AI)...');
+        createBot('baileys_auth_info_saran', false);
+    }, 7000);
+}
+
+startDualBots();
