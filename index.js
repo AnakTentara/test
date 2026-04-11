@@ -134,37 +134,51 @@ async function generateAndSendSuggestions(chatId, historyObj) {
         const lastFewMessages = historyObj.messages.slice(-6); 
         const contextText = lastFewMessages.map(m => `${m.role === 'user' ? 'Acell' : 'Shakaru'}: ${m.content}`).join('\n');
 
-        const promptSaran = `Kamu adalah Asisten Roleplay Acell. Berdasarkan alur cerita terbaru, berikan 3 opsi teks balasan yang bisa Acell copy-paste untuk merespon Shakaru.
-Konsep balasan:
-1. Opsi Pasrah/Submisif
-2. Opsi Berontak/Menolak (baik secara fisik atau verbal)
-3. Opsi Menggoda/Merayu Balik (Flirty/Nakal)
+        const promptSaran = `Kamu adalah Asisten Roleplay rahasia. Berikan 3 opsi balasan dari sudut pandang Acell untuk merespon adegan terakhir Shakaru.
+SANGAT PENTING: Terapkan format ini pada setiap saranmu:
+- Dialog suara wajib DITEBALKAN (*teks*)
+- Narasi/aksi fisik wajib DIMIRINGKAN (_teks_)
+
+Opsi yang dibutuhkan:
+1. Mode Pasrah/Submisif (Menerima perlakuannya)
+2. Mode Menolak/Berontak (Melawan secara fisik/verbal)
+3. Mode Merayu Balik/Flirty (Balik menggoda/memancing)
 
 Konteks Terakhir:
 ${contextText}
 
-Format Output Wajib (Hanya berikan teks ini):
-*1. Mode Pasrah/Submisif:*
-(teks opsi 1)
-
-*2. Mode Menolak/Berontak:*
-(teks opsi 2)
-
-*3. Mode Merayu Balik:*
-(teks opsi 3)`;
+BERIKAN MURNI 3 BALASAN SAJA! Pisahkan setiap opsi dengan separator "|||". Jangan ada pembukaan/penutup chat sama sekali.
+Format Wajib:
+*Opsi 1 (Submisif):*
+_mengangguk pelan_ *"iya sayang"*
+|||
+*Opsi 2 (Berontak):*
+_mendorong dadanya_ *"lepasin aku!"*
+|||
+*Opsi 3 (Flirty):*
+_memeluk lehernya_ *"kamu berani hukum aku?"*`;
 
         const completion = await openai.chat.completions.create({
             model: "gemini-3.1-flash-lite-preview",
             messages: [{ role: "user", content: promptSaran }],
             temperature: 0.8,
-            max_tokens: 800,
+            max_tokens: 1000,
         });
 
         const suggestionsText = completion.choices[0].message.content;
+        const optionsArray = suggestionsText.split('|||').map(t => t.trim()).filter(Boolean);
 
-        // Kirim pakai Bot 2 (Sistem Saran) ke nomor Acell
-        await sockSaran.sendMessage(chatId, { text: `🌸 *SARAN BALASAN (SYSTEM)* 🌸\n\n${suggestionsText}` });
-        console.log(`[SISTEM SARAN] Berhasil mengirim opsi ke Acell.`);
+        // Pesan 1: Prefix / Pembuka
+        await sockSaran.sendMessage(chatId, { text: `🌸 *SARAN BALASAN (Pilih & Edit)* 🌸` });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Pesan 2, 3, 4: Mengirim Opsi 1 per 1 agar mudah dicopy
+        for (let i = 0; i < optionsArray.length; i++) {
+            await sockSaran.sendMessage(chatId, { text: optionsArray[i] });
+            if (i < optionsArray.length - 1) await new Promise(resolve => setTimeout(resolve, 800));
+        }
+        
+        console.log(`[SISTEM SARAN] 4 Pesan berhasil dikirim ke Acell.`);
     } catch (err) {
         console.error('[SISTEM SARAN] Error membuat saran:', err.message);
     }
