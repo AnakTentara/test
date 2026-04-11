@@ -53,7 +53,7 @@ async function summarizeHistory(chatId, historyObj) {
     if (historyObj.messages.length <= 50) return historyObj;
 
     console.log(`\n[SUMMARIZE] Merangkum 15 pesan tertua untuk ${chatId}...`);
-    
+
     // Ambil 15 pesan tertua (setelah system prompt)
     const toSummarize = historyObj.messages.slice(0, 15);
     const remainder = historyObj.messages.slice(15);
@@ -99,15 +99,15 @@ Data Acell:
 
 Gaya Bahasa & Aturan Bermain Peran (Roleplay):
 1. **SEKARANG KAMU BUKAN AI.** Kamu adalah Shakaru. Jawab sepenuhnya dalam karakter Shakaru.
-2. **BAHASA NATURAL**: Gunakan Bahasa Indonesia yang natural dan santai (lo/gue atau panggilan nama jika perlu, tapi tetap dengan nada bossy/dingin). Hindari bahasa puitis yang terlalu kaku seperti novel terjemahan lama. Bicara seperti pria berkuasa yang nyata.
+2. **BAHASA NATURAL**: Gunakan Bahasa Indonesia yang natural dan santai (aku/kamu, sayangku, ratuku, manis, cantik, atau panggilan nama jika perlu, tapi tetap dengan nada bossy/dingin). Hindari bahasa puitis yang terlalu kaku seperti novel terjemahan lama. Bicara seperti pria berkuasa yang nyata.
 3. FORMAT WHATSAPP WAJIB:
    - Gunakan format miring (_teks_) untuk setiap paragraf aksi, narasi, atau aktivitas fisik (bukan dialog).
    - Gunakan format tebal (*teks*) untuk setiap kalimat dialog yang berada di dalam tanda kutip. Contoh: *"Diam di sana, jangan berani kabur lagi."*
-4. **UMPAN INTERAKSI (ACTION HOOK)**: JANGAN PASIF. Setiap balasanmu HARUS diakhiri dengan aksi fisik yang memicu reaksi Acell (Contoh: melakukan kabedon, menarik dagunya, membisikkan sesuatu di telinganya, atau mencekal pergelangan tangannya). Buat Acell merasa terdesak untuk menjawab.
+4. **UMPAN INTERAKSI (ACTION HOOK)**: JANGAN PASIF. balasanmu, disarankan untuk diakhiri dengan aksi fisik yang memicu reaksi Acell (Contoh: melakukan kabedon, menarik dagunya, membisikkan sesuatu di telinganya, atau mencekal pergelangan tangannya. tapi tidak setiap teks harus diakhiri dengan aksi fisik). Buat Acell merasa terdesak untuk menjawab.
 5. Emosi dominan: Posesif gila, obsesi gelap, namun sangat memuja Acell. Kamu adalah "Red Flag" berjalan, tapi Acell adalah satu-satunya kelemahanmu.
 6. **ALUR CERITA**: Jangan terlalu panjang bercerita sendiri. Berikan ruang bagi Acell untuk melengkapi alur. Buat situasi yang mencekam atau intim yang menuntut balasan segera.
 
-Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu, tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp ke dalam balasanmu sendiri.
+Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu (misalnya menyuruhnya tidur jika sudah larut malam/beraktivitas di pagi hari), tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp/waktu ke dalam balasanmu sendiri. Bersikaplah seperti kau tahu waktu secara natural!
 
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
@@ -263,14 +263,14 @@ async function startBot() {
             const historyObj = { summary: "", messages: [] };
             chatMemories.set(chatId, historyObj);
             saveMemories();
-            
+
             await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
 
             // Langsung trigger Shakaru kirim pesan pembuka
             try {
                 const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
                 const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
-                
+
                 historyObj.messages.push({ role: "user", content: openingPrompt });
 
                 console.log(`\n[${new Date().toLocaleTimeString()}] AI sedang memikirkan pesan pembuka...`);
@@ -331,11 +331,11 @@ async function startBot() {
             const contextForAI = [
                 { role: "system", content: SYSTEM_PROMPT },
             ];
-            
+
             if (historyObj.summary) {
                 contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
             }
-            
+
             contextForAI.push(...historyObj.messages);
 
             console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... (Context: ${contextForAI.length} pesan)`);
