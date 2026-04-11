@@ -41,7 +41,14 @@ Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai 
 
 
 
+let isConnecting = false;
+
 async function startBot() {
+    if (isConnecting) {
+        console.log('[INFO] Bot sudah sedang dalam proses koneksi, skip restart.');
+        return;
+    }
+    isConnecting = true;
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
 
     const sock = makeWASocket({
@@ -64,10 +71,17 @@ async function startBot() {
         }
 
         if (connection === 'close') {
+            isConnecting = false; // Reset flag agar bisa reconnect
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('🛑 Koneksi terputus! Reconnecting:', shouldReconnect);
-            if (shouldReconnect) startBot();
+            if (shouldReconnect) {
+                console.log('[INFO] Menunggu 5 detik sebelum reconnect...');
+                setTimeout(() => startBot(), 5000);
+            } else {
+                console.log('[INFO] Bot di-logout. Hapus folder baileys_auth_info dan restart manual.');
+            }
         } else if (connection === 'open') {
+            isConnecting = false; // Reset flag setelah berhasil
             console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys (Super Ringan)!');
             console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
             console.log('Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n');
