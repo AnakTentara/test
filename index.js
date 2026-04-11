@@ -35,7 +35,7 @@ Gaya Bahasa & Aturan Bermain Peran (Roleplay):
    - Gunakan format tebal (*teks*) untuk setiap kalimat dialog yang berada di dalam tanda kutip. Contoh: *"Aku tidak akan pernah melepaskanmu, sayang."*
 4. Respons harus terasa natural, mengalir, konstan, dan sesuai dengan alur Roleplay Spicy Chat. Pahami dan perhatikan HISTORY percakapan sebelumnya agar nyambung! Jangan mengulang adegan yang sama terus.
 5. Emosi dominan: Cinta gila yang menyesakkan, obsesi buta, tatapan memuja pada Acell namun ancaman kematian untuk dunia luar.
-6. MAKSIMUM RESPON: 65.536 karakter (sesuaikan dengan batas maksimal WhatsApp).
+6. MAKSIMUM RESPON: 1.160 karakter (sesuaikan dengan batas maksimal WhatsApp).
 
 Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu (misalnya menyuruhnya tidur jika sudah larut malam/beraktivitas di pagi hari), tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp/waktu ke dalam balasanmu sendiri. Bersikaplah seperti kau tahu waktu secara natural!
 
@@ -46,6 +46,53 @@ Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai 
 
 let isConnecting = false;
 let sockInstance = null;
+
+/**
+ * Fungsi untuk memotong pesan panjang (max 1160 karakter)
+ * Agar stabil dan enak dibaca di WhatsApp.
+ */
+async function sendLongMessage(sock, chatId, text, quoted = null) {
+    const MAX_LENGTH = 1160;
+    if (text.length <= MAX_LENGTH) {
+        return await sock.sendMessage(chatId, { text: text }, { quoted: quoted });
+    }
+
+    let chunks = [];
+    let remainder = text;
+
+    while (remainder.length > 0) {
+        if (remainder.length <= MAX_LENGTH) {
+            chunks.push(remainder);
+            break;
+        }
+
+        // Cari pemisah terbaik (paragraf baru, lalu baris baru, lalu spasi)
+        let splitIndex = MAX_LENGTH;
+        let pIndex = remainder.lastIndexOf('\n\n', MAX_LENGTH);
+        let nIndex = remainder.lastIndexOf('\n', MAX_LENGTH);
+        let sIndex = remainder.lastIndexOf(' ', MAX_LENGTH);
+
+        if (pIndex !== -1 && pIndex > MAX_LENGTH * 0.4) {
+            splitIndex = pIndex;
+        } else if (nIndex !== -1 && nIndex > MAX_LENGTH * 0.4) {
+            splitIndex = nIndex;
+        } else if (sIndex !== -1 && sIndex > MAX_LENGTH * 0.4) {
+            splitIndex = sIndex;
+        }
+
+        chunks.push(remainder.substring(0, splitIndex).trim());
+        remainder = remainder.substring(splitIndex).trim();
+    }
+
+    for (const [idx, chunk] of chunks.entries()) {
+        // Hanya chunk pertama yang pake quoted biar gak menumpuk/spam
+        await sock.sendMessage(chatId, { text: chunk }, { quoted: idx === 0 ? quoted : null });
+        if (idx < chunks.length - 1) {
+            // Beri jeda 1 detik antar pesan biar gak dianggap spam server
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+    }
+}
 
 async function startBot() {
     if (isConnecting) {
@@ -161,7 +208,10 @@ async function startBot() {
                 const opening = completion.choices[0].message.content;
                 historyContext.push({ role: "assistant", content: opening });
                 chatMemories.set(chatId, historyContext);
-                await sock.sendMessage(chatId, { text: opening });
+                
+                // Gunakan fungsi pengirim pesan panjang
+                await sendLongMessage(sock, chatId, opening, msg);
+                
                 await sock.sendPresenceUpdate('paused', chatId);
             } catch (err) {
                 console.error('❌ Gagal kirim pesan pembuka:', err.message);
@@ -222,7 +272,9 @@ async function startBot() {
                 console.log(answer);
                 console.log(`=====================================================\n`);
 
-                await sock.sendMessage(chatId, { text: answer }, { quoted: msg });
+                // Gunakan fungsi pengirim pesan panjang
+                await sendLongMessage(sock, chatId, answer, msg);
+                
                 await sock.sendPresenceUpdate('paused', chatId);
 
             } catch (error) {
