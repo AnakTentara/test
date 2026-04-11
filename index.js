@@ -8,7 +8,7 @@ const path = require('path');
 
 // OpenAI Init with custom Base URL
 const openai = new OpenAI({
-    baseURL: 'http://ai.aikeigroup.net/v1',
+    baseURL: 'http://ai.aikeigroup.net/v1/chat/completions',
     apiKey: 'aduhkaboaw91h9i28hoablkdl09190jelnkaknldwa90hoi2',
 });
 
@@ -54,7 +54,7 @@ async function startBot() {
 
     // Tutup socket lama jika ada (agar tidak spam event)
     if (sockInstance) {
-        try { sockInstance.ws.close(); } catch (_) {}
+        try { sockInstance.ws.close(); } catch (_) { }
         sockInstance = null;
     }
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
@@ -124,12 +124,34 @@ async function startBot() {
 
         if (textBody === '/rp') {
             activeChats.add(chatId);
-            let historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
+            const historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
             chatMemories.set(chatId, historyContext);
             await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
+
+            // Langsung trigger Shakaru kirim pesan pembuka
+            try {
+                const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
+                const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
+                historyContext.push({ role: "user", content: openingPrompt });
+
+                await sock.sendPresenceUpdate('composing', chatId);
+                const completion = await openai.chat.completions.create({
+                    model: "gemini-3.1-flash-lite-preview",
+                    messages: historyContext,
+                    temperature: 0.9,
+                    max_tokens: 300,
+                });
+                const opening = completion.choices[0].message.content;
+                historyContext.push({ role: "assistant", content: opening });
+                chatMemories.set(chatId, historyContext);
+                await sock.sendMessage(chatId, { text: opening });
+                await sock.sendPresenceUpdate('paused', chatId);
+            } catch (err) {
+                console.error('❌ Gagal kirim pesan pembuka:', err.message);
+            }
             return;
         }
-        
+
         if (textBody === '/stop') {
             if (activeChats.has(chatId)) {
                 activeChats.delete(chatId);
