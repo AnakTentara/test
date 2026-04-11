@@ -5,6 +5,8 @@ const MEMORY_FILE = path.join(__dirname, '..', 'data', 'memory.json');
 const HAIKARU_MEMORY_FILE = path.join(__dirname, '..', 'data', 'haikaru_memory.json');
 
 let activeChats = new Set();
+// Default Disable Grup yang diminta Bos
+let disabledChats = new Set(['120363404404808548@g.us']); 
 let chatMemories = new Map();
 let haikaruMemories = new Map();
 
@@ -17,6 +19,7 @@ function saveMemories() {
         }
         const data = {
             activeChats: Array.from(activeChats),
+            disabledChats: Array.from(disabledChats),
             chatMemories: Object.fromEntries(chatMemories)
         };
         fs.writeFileSync(MEMORY_FILE, JSON.stringify(data, null, 2));
@@ -32,6 +35,9 @@ function loadMemories() {
             
             activeChats.clear();
             (data.activeChats || []).forEach(c => activeChats.add(c));
+            
+            disabledChats.clear();
+            (data.disabledChats || ['120363404404808548@g.us']).forEach(c => disabledChats.add(c));
             
             chatMemories.clear();
             Object.entries(data.chatMemories || {}).forEach(([k, v]) => chatMemories.set(k, v));
@@ -73,6 +79,7 @@ function loadHaikaruMemories() {
 
 module.exports = {
     activeChats,
+    disabledChats,
     chatMemories,
     haikaruMemories,
     saveMemories,

@@ -1,4 +1,4 @@
-const { activeChats, saveMemories, chatMemories } = require('./dbHandler');
+const { activeChats, disabledChats, saveMemories, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction } = require('./geminiRotator');
 const { generateVoice } = require('./voiceHandler');
@@ -39,8 +39,27 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     if (!textMessage && !imageObj) return;
 
     const textBody = textMessage.trim();
+    const isGroup = chatId.endsWith('@g.us');
+
+    // Mencegah AI membaca chat jika grup/chat sedang masuk list Disable
+    if (disabledChats.has(chatId) && textBody !== '/enable' && textBody !== '/disable') {
+        return; 
+    }
 
     // =============== COMMAND SYSTEM ===============
+    
+    // COMMAND: /disable & /enable (KHUSUS OWNER)
+    if ((textBody === '/disable' || textBody === '/enable') && isFromMe) {
+        if (textBody === '/disable') {
+            disabledChats.add(chatId);
+            await sock.sendMessage(chatId, { text: '🔇 AI-Haikaru telah dimatikan di chat ini.' }, { quoted: msg });
+        } else {
+            disabledChats.delete(chatId);
+            await sock.sendMessage(chatId, { text: '🔊 AI-Haikaru telah dihidupkan kembali di chat ini.' }, { quoted: msg });
+        }
+        saveMemories();
+        return;
+    }
     // COMMAND: /rp
     if (textBody === '/rp') {
         if (!chatId.includes('182218953596969')) {
@@ -140,6 +159,19 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
     } 
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {
+        
+        // Pengecekan Grup: Haikaru HANYA muncul jika di tag atau di-reply!
+        if (isGroup) {
+            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            const contextInfo = msg.message.extendedTextMessage?.contextInfo || {};
+            const isMentioned = contextInfo.mentionedJid?.includes(botJid) || false;
+            const isReplied = contextInfo.participant === botJid;
+
+            if (!isMentioned && !isReplied) {
+                return; // Abaikan chat grup biasa jika Haikaru tidak dipanggil
+            }
+        }
+
         // 1. Emoji Reaction Logic
         const now = Date.now();
         const lastReact = reactionCooldowns.get(chatId) || 0;
