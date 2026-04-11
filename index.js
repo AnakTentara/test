@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 const { OpenAI } = require('openai');
 const fs = require('fs');
 const path = require('path');
@@ -45,7 +46,6 @@ async function startBot() {
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: true,
         auth: state,
         generateHighQualityLinkPreview: true,
     });
@@ -55,13 +55,20 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        // Tampilkan QR Code secara manual di terminal
+        if (qr) {
+            console.log('\n📱 Scan QR Code di bawah ini menggunakan WhatsApp-mu (Linked Devices):');
+            qrcode.generate(qr, { small: true });
+        }
+
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('🛑 Koneksi terputus! Reconnecting:', shouldReconnect);
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
-            console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys API yang Sangat Ringan!');
+            console.log('✅ Berhasil terautentikasi ke WhatsApp via Baileys (Super Ringan)!');
             console.log('🤖 Bot Roleplay Shakaru telah siap dan berjalan!');
             console.log('Ketik /rp di HP kamu pada chat mana pun untuk mengaktifkan roleplay di chat tersebut!\n');
         }
