@@ -29,8 +29,13 @@ function loadMemories() {
     try {
         if (fs.existsSync(MEMORY_FILE)) {
             const data = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
-            activeChats = new Set(data.activeChats || []);
-            chatMemories = new Map(Object.entries(data.chatMemories || {}));
+            
+            activeChats.clear();
+            (data.activeChats || []).forEach(c => activeChats.add(c));
+            
+            chatMemories.clear();
+            Object.entries(data.chatMemories || {}).forEach(([k, v]) => chatMemories.set(k, v));
+            
             console.log(`[INFO] Berhasil memuat memori Shakaru: ${activeChats.size} chat aktif.`);
         }
     } catch (err) {
@@ -55,7 +60,10 @@ function loadHaikaruMemories() {
     try {
         if (fs.existsSync(HAIKARU_MEMORY_FILE)) {
             const data = JSON.parse(fs.readFileSync(HAIKARU_MEMORY_FILE, 'utf8'));
-            haikaruMemories = new Map(Object.entries(data));
+            
+            haikaruMemories.clear();
+            Object.entries(data || {}).forEach(([k, v]) => haikaruMemories.set(k, v));
+            
             console.log(`[INFO] Berhasil memuat memori Haikaru dari file.`);
         }
     } catch (err) {
