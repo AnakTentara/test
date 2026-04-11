@@ -86,21 +86,27 @@ client.on('authenticated', () => {
     console.log('✅ Berhasil terautentikasi ke WhatsApp!');
 });
 
-client.on('auth_failure', msg => {
-    console.error('❌ Gagal terautentikasi:', msg);
+client.on('auth_failure', message => {
+    console.error('❌ Gagal terautentikasi:', message);
 });
 
 client.on('disconnected', (reason) => {
     console.log('🛑 Bot terputus! Alasan:', reason);
 });
 
-client.on('message_create', async msg => {
-    // Abaikan status WhatsApp atau pengumuman broadcast/channel
-    if (msg.isStatus || msg.id.remote === 'status@broadcast') return;
+client.on('message_create', async message => {
+    // ---- DEBUG LOG SEMUA PESAN ----
+    console.log(`\n[DEBUG] Msg dari: ${message.from} | Ke: ${message.to} | fromMe: ${message.fromMe} | Tipe: ${message.type} | Body: "${message.body}"`);
+    
+    // Abaikan status WhatsApp / broadcast agar bot tidak crash saat mengambil getChat()
+    if (message.isStatus || message.id.remote === 'status@broadcast' || message.type === 'protocolMessage') {
+        console.log(`[DEBUG] Pesan diabaikan karena tipe tidak didukung.`);
+        return;
+    }
 
     let chat;
     try {
-        chat = await msg.getChat();
+        chat = await message.getChat();
     } catch (error) {
         // Abaikan jika pesan berasal dari tipe chat yang tidak didukung (misal WhatsApp Channels)
         return;
@@ -108,8 +114,11 @@ client.on('message_create', async msg => {
 
     const chatId = chat.id._serialized;
 
+    // Pengecekan aman body text
+    const textBody = message.body ? message.body.trim().toLowerCase() : '';
+
     // Command handling (Bisa dihidupkan/dimatikan baik dari HP bot maupun oleh si pengirim)
-    if (msg.body.trim() === '/rp') {
+    if (textBody === '/rp') {
         activeChats.add(chatId);
         
         // Buat memori dasar
@@ -138,31 +147,38 @@ client.on('message_create', async msg => {
         // Terapkan memori gabungan
         chatMemories.set(chatId, historyContext);
         
-        await msg.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)');
+        await message.reply('🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN. (Shakaru telah membaca riwayat chat sebelumnya dan siap merespons)');
         console.log(`\n✅ Roleplay diaktifkan di chat: ${chat.name || chatId} (dengan ${historyContext.length - 1} konteks chat masa lalu)`);
         return;
     }
     
-    if (msg.body.trim() === '/stop') {
+    if (textBody === '/stop') {
         if (activeChats.has(chatId)) {
             activeChats.delete(chatId);
             chatMemories.delete(chatId);
-            await msg.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
+            await message.reply('⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN untuk chat ini.');
             console.log(`\n🛑 Roleplay dimatikan di chat: ${chat.name || chatId}`);
         }
         return;
     }
 
+    if (textBody === '/test') {
+        const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
+        await message.reply(`🏓 Pong! Bot berjalan normal. (Waktu server: ${timeNow})`);
+        console.log(`\n🏓 Ping pong command triggered di chat: ${chat.name || chatId}`);
+        return;
+    }
+
     // Roleplay handling (jika chat ini aktif, dan pesannya dari orang lain)
-    if (activeChats.has(chatId) && !msg.fromMe) {
-        console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chat.name}): ${msg.body}`);
+    if (activeChats.has(chatId) && !message.fromMe) {
+        console.log(`\n[${new Date().toLocaleTimeString()}] Acell (${chat.name}): ${message.body}`);
 
         // Ambil riwayat chat dari map, atau inisialisasi jika tidak ada
         let conversationHistory = chatMemories.get(chatId) || [{ role: "system", content: SYSTEM_PROMPT }];
 
         // Inject timestamp (GMT+7 WIB) ke dalam prompt agar Shakaru tahu persis jam berapa Acell chatting
         const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
-        const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${msg.body}`;
+        const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${message.body}`;
 
         // Simpan pesan user ke history
         conversationHistory.push({ role: "user", content: userPromptWithContext });
@@ -197,7 +213,7 @@ client.on('message_create', async msg => {
             console.log(`=====================================================\n`);
 
             // LANGSUNG KIRIM KE WHATSAPP (Acell)
-            await msg.reply(answer);
+            await message.reply(answer);
 
 
 
