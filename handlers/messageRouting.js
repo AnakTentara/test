@@ -1,4 +1,4 @@
-const { activeChats, disabledChats, saveMemories, chatMemories } = require('./dbHandler');
+const { activeChats, disabledChats, saveMemories, saveDisabledChats, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction } = require('./geminiRotator');
 const { generateVoice } = require('./voiceHandler');
@@ -57,7 +57,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
             disabledChats.delete(chatId);
             await sock.sendMessage(chatId, { text: '🔊 AI-Haikaru telah dihidupkan kembali di chat ini.' }, { quoted: msg });
         }
-        saveMemories();
+        saveDisabledChats(); // Simpan ke disabled-chats.yml
         return;
     }
     // COMMAND: /rp

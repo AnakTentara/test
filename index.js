@@ -3,7 +3,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 
-const { loadMemories, loadHaikaruMemories } = require('./handlers/dbHandler');
+const { loadMemories, loadHaikaruMemories, loadDisabledChats } = require('./handlers/dbHandler');
 const { setSockSaran } = require('./handlers/aiChatHandler');
 const { handleIncomingMessage } = require('./handlers/messageRouting');
 
@@ -53,6 +53,7 @@ async function createBot(sessionName, isShakaru) {
             if (isShakaru) {
                 loadMemories();
                 loadHaikaruMemories();
+                loadDisabledChats();
             }
             console.log(`✅ Berhasil terautentikasi: ${botName}`);
         }

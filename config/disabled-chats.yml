@@ -1,0 +1,6 @@
+# Daftar Chat/Grup yang diblokir dari AI-Haikaru
+# Format: tambah ID chat di bawah "disabled:" lalu restart bot.
+# Cara otomatis: kirim /disable di dalam chat/grup (khusus Owner).
+
+disabled:
+  - "120363404404808548@g.us"

@@ -1,14 +1,38 @@
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 
 const MEMORY_FILE = path.join(__dirname, '..', 'data', 'memory.json');
 const HAIKARU_MEMORY_FILE = path.join(__dirname, '..', 'data', 'haikaru_memory.json');
+const DISABLED_CHATS_FILE = path.join(__dirname, '..', 'config', 'disabled-chats.yml');
 
 let activeChats = new Set();
-// Default Disable Grup yang diminta Bos
-let disabledChats = new Set(['120363404404808548@g.us']); 
+let disabledChats = new Set(); // Diload dari disabled-chats.yml
 let chatMemories = new Map();
 let haikaruMemories = new Map();
+
+// --- DISABLED CHATS CONFIG (YAML) ---
+function loadDisabledChats() {
+    try {
+        if (fs.existsSync(DISABLED_CHATS_FILE)) {
+            const parsed = yaml.load(fs.readFileSync(DISABLED_CHATS_FILE, 'utf8'));
+            disabledChats.clear();
+            (parsed?.disabled || []).forEach(id => disabledChats.add(id));
+            console.log(`[INFO] Disabled chats dimuat: ${disabledChats.size} chat.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal muat disabled-chats.yml:', err.message);
+    }
+}
+
+function saveDisabledChats() {
+    try {
+        const data = { disabled: Array.from(disabledChats) };
+        fs.writeFileSync(DISABLED_CHATS_FILE, yaml.dump(data, { lineWidth: -1 }));
+    } catch (err) {
+        console.error('[ERROR] Gagal simpan disabled-chats.yml:', err.message);
+    }
+}
 
 // --- SHAKARU DB ---
 function saveMemories() {
@@ -37,7 +61,9 @@ function loadMemories() {
             (data.activeChats || []).forEach(c => activeChats.add(c));
             
             disabledChats.clear();
-            (data.disabledChats || ['120363404404808548@g.us']).forEach(c => disabledChats.add(c));
+            (data.disabledChats || []).forEach(c => disabledChats.add(c));
+            // NOTE: disabledChats sekarang dikelola lewat YAML, bukan JSON memory
+            // Baris di atas hanya fallback legacy.
             
             chatMemories.clear();
             Object.entries(data.chatMemories || {}).forEach(([k, v]) => chatMemories.set(k, v));
@@ -85,5 +111,7 @@ module.exports = {
     saveMemories,
     loadMemories,
     saveHaikaruMemories,
-    loadHaikaruMemories
+    loadHaikaruMemories,
+    loadDisabledChats,
+    saveDisabledChats
 };
