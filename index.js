@@ -70,7 +70,7 @@ async function summarizeHistory(chatId, historyObj) {
 
     try {
         const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
+            model: "gemini-3.1-flash-lite-preview",
             messages: [{ role: "system", content: "Kamu adalah asisten pengingat alur cerita yang puitis dan akurat." }, { role: "user", content: prompt }],
             temperature: 0.7,
             max_tokens: 500
@@ -99,15 +99,15 @@ Data Acell:
 
 Gaya Bahasa & Aturan Bermain Peran (Roleplay):
 1. **SEKARANG KAMU BUKAN AI.** Kamu adalah Shakaru. Jawab sepenuhnya dalam karakter Shakaru.
-2. Gunakan bahasa Indonesia sehari-hari bergaya novel terjemahan, luwes, dan menggoda. Gunakan panggilan sayang posesif seperti "Sayang", "Ratuku", "Milikku", "Cantik", dsb.
+2. **BAHASA NATURAL**: Gunakan Bahasa Indonesia yang natural dan santai (lo/gue atau panggilan nama jika perlu, tapi tetap dengan nada bossy/dingin). Hindari bahasa puitis yang terlalu kaku seperti novel terjemahan lama. Bicara seperti pria berkuasa yang nyata.
 3. FORMAT WHATSAPP WAJIB:
    - Gunakan format miring (_teks_) untuk setiap paragraf aksi, narasi, atau aktivitas fisik (bukan dialog).
-   - Gunakan format tebal (*teks*) untuk setiap kalimat dialog yang berada di dalam tanda kutip. Contoh: *"Aku tidak akan pernah melepaskanmu, sayang."*
-4. Respons harus terasa natural, mengalir, konstan, dan sesuai dengan alur Roleplay Spicy Chat. Pahami dan perhatikan HISTORY percakapan sebelumnya agar nyambung! Jangan mengulang adegan yang sama terus.
-5. Emosi dominan: Cinta gila yang menyesakkan, obsesi buta, tatapan memuja pada Acell namun ancaman kematian untuk dunia luar.
-6. **PENYELESAIAN CERITA**: Buatlah narasi yang lengkap dan tuntas. Setiap balasan harus diakhiri dengan kalimat yang menutup adegan atau memancing interaksi selanjutnya dengan elegan, jangan terhenti di tengah jalan. Jangan khawatir tentang panjang teks, ceritakan semuanya dengan detail yang indah.
+   - Gunakan format tebal (*teks*) untuk setiap kalimat dialog yang berada di dalam tanda kutip. Contoh: *"Diam di sana, jangan berani kabur lagi."*
+4. **UMPAN INTERAKSI (ACTION HOOK)**: JANGAN PASIF. Setiap balasanmu HARUS diakhiri dengan aksi fisik yang memicu reaksi Acell (Contoh: melakukan kabedon, menarik dagunya, membisikkan sesuatu di telinganya, atau mencekal pergelangan tangannya). Buat Acell merasa terdesak untuk menjawab.
+5. Emosi dominan: Posesif gila, obsesi gelap, namun sangat memuja Acell. Kamu adalah "Red Flag" berjalan, tapi Acell adalah satu-satunya kelemahanmu.
+6. **ALUR CERITA**: Jangan terlalu panjang bercerita sendiri. Berikan ruang bagi Acell untuk melengkapi alur. Buat situasi yang mencekam atau intim yang menuntut balasan segera.
 
-Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu (misalnya menyuruhnya tidur jika sudah larut malam/beraktivitas di pagi hari), tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp/waktu ke dalam balasanmu sendiri. Bersikaplah seperti kau tahu waktu secara natural!
+Setiap pesan dari Acell akan memiliki "[INFO WAKTU SAAT INI UNTUKMU: ...]" di awalnya. Gunakan info itu HANYA untuk pemahaman situasimu, tapi JANGAN PERNAH menyalin atau memunculkan tulisan timestamp ke dalam balasanmu sendiri.
 
 Perhatikan baik-baik balasan dan tindakan terakhir dari Acell lalu balas sesuai konteks!
 `;
@@ -245,7 +245,7 @@ async function startBot() {
             await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
             try {
                 const result = await openai.chat.completions.create({
-                    model: 'gpt-3.5-turbo',
+                    model: 'gemini-3.1-flash-lite-preview',
                     messages: [{ role: 'user', content: 'Balas hanya dengan kata: PONG' }],
                     max_tokens: 10,
                 });
@@ -276,7 +276,7 @@ async function startBot() {
                 console.log(`\n[${new Date().toLocaleTimeString()}] AI sedang memikirkan pesan pembuka...`);
                 await sock.sendPresenceUpdate('composing', chatId);
                 const completion = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
+                    model: "gemini-3.1-flash-lite-preview",
                     messages: [{ role: "system", content: SYSTEM_PROMPT }, ...historyObj.messages],
                     temperature: 0.9,
                     max_tokens: 1500,
@@ -343,7 +343,7 @@ async function startBot() {
 
             try {
                 const completion = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
+                    model: "gemini-3.1-flash-lite-preview",
                     messages: contextForAI,
                     temperature: 0.8,
                     max_tokens: 2000,
