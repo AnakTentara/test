@@ -44,8 +44,29 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const isGroup = chatId.endsWith('@g.us');
 
     // ==== CONTEXT PREFIX (untuk disuntik ke AI context) ====
-    const timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false });
-    const contextPrefix = `[👤 ${pushName} | 🆔 ${chatId} | 📅 ${timestamp}]\n`;
+    const now = new Date();
+    const jamTanggal = now.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+        day: '2-digit', month: '2-digit', year: 'numeric'
+    }).replace(',', '');
+
+    // Pisahkan Number vs LID dari chatId
+    let numberPart = 'N/A';
+    let lidPart = 'N/A';
+    if (chatId.endsWith('@s.whatsapp.net')) {
+        numberPart = chatId.replace('@s.whatsapp.net', '');
+    } else if (chatId.endsWith('@lid')) {
+        lidPart = chatId;
+        if (msg.key.participant) numberPart = msg.key.participant.replace('@s.whatsapp.net', '');
+    } else if (chatId.endsWith('@g.us') && msg.key.participant) {
+        const p = msg.key.participant;
+        if (p.endsWith('@s.whatsapp.net')) numberPart = p.replace('@s.whatsapp.net', '');
+        else if (p.endsWith('@lid')) lidPart = p;
+    }
+
+    const buildPrefix = (text) =>
+        `[${jamTanggal} (GMT+7/Muara Enim/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
 
     // Fungsi generate intro singkat dari AI untuk command otomatis
     async function getAICommandIntro(commandType) {
@@ -196,7 +217,7 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
     // Jika Owner chat -> Cek apakah ada perintah Agent
     else if (!activeChats.has(chatId) && isOwner(chatId) && !isFromMe) {
         incrementReply();
-        await runAgent(sock, chatId, contextPrefix + textMessage, msg);
+        await runAgent(sock, chatId, buildPrefix(textMessage), msg);
     }
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {
@@ -246,7 +267,7 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
 
         // 3. Kirim pesan ke Haikaru (dengan konteks prefix)
         incrementReply();
-        await processHaikaruChat(sock, chatId, contextPrefix + textMessage, imageObj, msg);
+        await processHaikaruChat(sock, chatId, buildPrefix(textMessage), imageObj, msg);
     }
 }
 
