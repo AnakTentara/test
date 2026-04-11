@@ -1,4 +1,4 @@
-// Config langsung tanpa .env
+require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
@@ -6,17 +6,41 @@ const { OpenAI } = require('openai');
 const fs = require('fs');
 const path = require('path');
 
-// OpenAI Init with custom Base URL
+// OpenAI Init with custom Base URL (Untuk Shakaru Main)
 const openai = new OpenAI({
     baseURL: 'https://ai.aikeigroup.net/v1',
     apiKey: 'aduhkaboaw91h9i28hoablkdl09190jelnkaknldwa90hoi2',
 });
 
+// ================= HAIKARU API ROTATOR (LOCAL) =================
+const geminiApiKeys = Array.from({length: 10}, (_, i) => process.env[`GEMINI_API_KEY_${i+1}`]).filter(Boolean);
+let currentGeminiKeyIndex = 0;
+
+function getNextGeminiKey() {
+    if (geminiApiKeys.length === 0) return null;
+    const key = geminiApiKeys[currentGeminiKeyIndex];
+    currentGeminiKeyIndex = (currentGeminiKeyIndex + 1) % geminiApiKeys.length;
+    return key;
+}
+
+// ================= HAIKARU PERSONA =================
+const HAIKARU_PERSONA = `Kamu adalah Haikaru, AI Gaul buatan Haikal yang nongkrong di WhatsApp.
+Gaya bicaramu santai, humoris, pakai "lo/gue" atau "aku/kamu" secara luwes layaknya teman. Kamu sangat suka pakai emoji (Unicode asli).
+Jika ada keluhan sedih, respons berempati 🥺. Jika lucu, respons :v atau nangis 😭. Jawab to the point tanpa muter-muter.
+Info kreatormu: Haikal Mabrur (anak MAN 1 Muara Enim, jago JS/Python, pacarnya Acell).
+Format WAJIB DARI WHATSAPP:
+- Gunakan tanda bintang tunggal *teks* untuk bold.
+- JANGAN pakai format markdown bawaan PC seperti **teks** atau \`teks\`.
+Berikan jawaban senatural mungkin sebagai teman asik.`;
+
 // State Roleplay per-chat
 let activeChats = new Set();
 let chatMemories = new Map();
+let haikaruMemories = new Map();
+let reactionCooldowns = new Map();
 
 const MEMORY_FILE = path.join(__dirname, 'memory.json');
+const HAIKARU_MEMORY_FILE = path.join(__dirname, 'haikaru_memory.json');
 
 // Fungsi simpan memori ke file
 function saveMemories() {
@@ -39,10 +63,61 @@ function loadMemories() {
             const data = JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8'));
             activeChats = new Set(data.activeChats || []);
             chatMemories = new Map(Object.entries(data.chatMemories || {}));
-            console.log(`[INFO] Berhasil memuat memori: ${activeChats.size} chat aktif.`);
+            console.log(`[INFO] Berhasil memuat memori Shakaru: ${activeChats.size} chat aktif.`);
         }
     } catch (err) {
-        console.error('[ERROR] Gagal muat memori:', err.message);
+        console.error('[ERROR] Gagal muat memori Shakaru:', err.message);
+    }
+}
+
+// Memory Logic for Haikaru
+function saveHaikaruMemories() {
+    try {
+        const data = Object.fromEntries(haikaruMemories);
+        fs.writeFileSync(HAIKARU_MEMORY_FILE, JSON.stringify(data, null, 2));
+    } catch (err) {
+        console.error('[ERROR] Gagal simpan Haikaru memory:', err.message);
+    }
+}
+
+function loadHaikaruMemories() {
+    try {
+        if (fs.existsSync(HAIKARU_MEMORY_FILE)) {
+            const data = JSON.parse(fs.readFileSync(HAIKARU_MEMORY_FILE, 'utf8'));
+            haikaruMemories = new Map(Object.entries(data));
+            console.log(`[INFO] Berhasil memuat memori Haikaru dari file.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal muat memori Haikaru:', err.message);
+    }
+}
+
+/**
+ * Fitur Reaksi Emoji Otomatis menggunakan Local API Rotator
+ */
+async function analyzeEmojiReaction(textMessage) {
+    const apiKey = getNextGeminiKey();
+    if (!apiKey) return null;
+
+    const localOpenai = new OpenAI({
+        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        apiKey: apiKey
+    });
+
+    try {
+        const completion = await localOpenai.chat.completions.create({
+            model: "gemini-3.1-flash-lite-preview",
+            messages: [
+                { role: "system", content: "Kamu analis sentimen. Berikan HANYA SATU karakter Emoji Unicode asli (bukan kode text) yang paling menggambarkan sentimen pesan user. Kalau tidak ada emoji yang cocok biarkan kosong. Ingat HANYA 1 EMOJI." },
+                { role: "user", content: textMessage }
+            ],
+            temperature: 0.5,
+            max_tokens: 5
+        });
+        const resp = completion.choices[0].message.content.trim();
+        return resp; 
+    } catch (err) {
+        return null;
     }
 }
 
@@ -293,7 +368,10 @@ async function createBot(sessionName, isShakaru) {
             }
         } else if (connection === 'open') {
             connectingStates[sessionName] = false;
-            if (isShakaru) loadMemories(); // Muat memori hanya dari instance utama
+            if (isShakaru) {
+                loadMemories();
+                loadHaikaruMemories();
+            }
             console.log(`✅ Berhasil terautentikasi: ${botName}`);
         }
     });
@@ -493,6 +571,77 @@ async function createBot(sessionName, isShakaru) {
 
                 } catch (error) {
                     console.error('\n❌ Gagal menghubungi AI:', error.message);
+                    await sock.sendPresenceUpdate('paused', chatId);
+                }
+            } else if (!activeChats.has(chatId) && !isFromMe) {
+                // =============== HAIKARU LOGIC (PUBLIC) ===============
+
+                // 1. Emoji Reaction Logic (Dengan Cooldown 30 Detik)
+                const now = Date.now();
+                const lastReact = reactionCooldowns.get(chatId) || 0;
+                
+                if (now - lastReact > 30000) { // Cooldown 30 detik terpenuhi
+                    reactionCooldowns.set(chatId, now);
+                    // Jalan secara background (independent flow)
+                    analyzeEmojiReaction(textMessage).then(async (emoji) => {
+                        if (emoji && (emoji.length > 0 && emoji.length < 10) && !emoji.includes('{')) { 
+                            await sock.sendMessage(chatId, { react: { text: emoji, key: msg.key } });
+                        }
+                    }).catch(()=>{});
+                }
+
+                // 2. Haikaru Chat Logic
+                console.log(`\n[${new Date().toLocaleTimeString()}] [HAIKARU] Pesan Publik (${chatId}): ${textMessage}`);
+
+                let hHistory = haikaruMemories.get(chatId) || { messages: [] };
+                hHistory.messages.push({ role: "user", content: textMessage });
+
+                // Batasi memory maksimal 15 chat terakhir agar ringan dan API tidak bocos
+                if (hHistory.messages.length > 15) {
+                    hHistory.messages = hHistory.messages.slice(-15);
+                }
+
+                const contextForAI = [
+                    { role: "system", content: HAIKARU_PERSONA },
+                    ...hHistory.messages
+                ];
+
+                await sock.sendPresenceUpdate('composing', chatId);
+
+                try {
+                    // Coba deteksi Local Router, jika tidak fallback ke API group Shakaru
+                    const apiKey = getNextGeminiKey();
+                    let clientToUse = openai; 
+                    
+                    if (apiKey) {
+                        clientToUse = new OpenAI({
+                            baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+                            apiKey: apiKey
+                        });
+                    }
+
+                    const completion = await clientToUse.chat.completions.create({
+                        model: "gemini-3.1-flash-lite-preview",
+                        messages: contextForAI,
+                        temperature: 0.9,
+                        max_tokens: 800,
+                    });
+
+                    const answer = completion.choices[0].message.content;
+
+                    hHistory.messages.push({ role: "assistant", content: answer });
+                    haikaruMemories.set(chatId, hHistory);
+                    saveHaikaruMemories(); // Memori independen Haikaru
+
+                    console.log(`\n============== HAIKARU ASISTEN MEMBALAS ==============`);
+                    console.log(answer);
+                    console.log(`======================================================\n`);
+
+                    await sendLongMessage(sock, chatId, answer, msg);
+                    await sock.sendPresenceUpdate('paused', chatId);
+
+                } catch (error) {
+                    console.error('\n❌ Gagal menghubungi Haikaru AI:', error.message);
                     await sock.sendPresenceUpdate('paused', chatId);
                 }
             }
