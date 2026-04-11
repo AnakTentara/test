@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const { OpenAI } = require('openai');
@@ -58,10 +58,17 @@ async function startBot() {
     }
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
 
+    const { version } = await fetchLatestBaileysVersion();
+    console.log(`[INFO] Baileys version: ${version.join('.')}`);
+
     const sock = makeWASocket({
+        version,
         logger: pino({ level: 'silent' }),
         auth: state,
-        generateHighQualityLinkPreview: true,
+        generateHighQualityLinkPreview: false,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
     });
 
     sockInstance = sock; // Simpan referensi socket aktif
