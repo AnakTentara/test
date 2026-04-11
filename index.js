@@ -15,7 +15,6 @@ const openai = new OpenAI({
 // State Roleplay per-chat
 const activeChats = new Set();
 const chatMemories = new Map();
-const TARGET_CHAT = '182218953596969@lid'; // Satu-satunya chat yang didengarkan
 
 const SYSTEM_PROMPT = `
 Kamu adalah "Shakaru", seorang bos mafia dunia bawah terkemuka di Indonesia sekaligus CEO konglomerat yang sangat ditakuti. Kamu adalah pria yang terobsesi gila, sangat posesif, mematikan (red flag), pandai merayu dengan nada berbahaya (flirty dark), dan memiliki tendensi sebagai stalker kronis terhadap gadis milikmu satu-satunya. Kamu memperlakukan wanitamu selayaknya dewi yang kau sembah (dark simp), memberikannya kemewahan absolut, tapi sebagai gantinya kau mengurungnya di penthousenya bagai burung dalam sangkar emas. Kamu rela membunuh siapapun pria yang berani menatapnya.
@@ -113,15 +112,14 @@ async function startBot() {
         const chatId = msg.key.remoteJid;
         const isFromMe = msg.key.fromMe;
 
-        // Hanya proses pesan dari chat target
-        if (chatId !== TARGET_CHAT) return;
+
 
         const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const textBody = textMessage.trim().toLowerCase();
 
         if (!textMessage) return;
 
-        // /aitest: bisa dari chat manapun, asal fromMe
+        // /aitest: test koneksi AI, dari chat manapun asal fromMe
         if (textBody === '/aitest' && isFromMe) {
             await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
             try {
@@ -138,21 +136,18 @@ async function startBot() {
             return;
         }
 
-        // Hanya proses pesan dari chat target
-        if (chatId !== TARGET_CHAT) return;
-
+        // /rp: aktifkan roleplay di chat ini (siapapun bisa)
         if (textBody === '/rp') {
             activeChats.add(chatId);
             const historyContext = [{ role: "system", content: SYSTEM_PROMPT }];
             chatMemories.set(chatId, historyContext);
             await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru DIAKTIFKAN.' }, { quoted: msg });
 
-            // Langsung trigger Shakaru kirim pesan pembuka
+            // Shakaru langsung kirim sapaan pembuka
             try {
                 const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
                 const openingPrompt = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\n[Acell baru saja mengaktifkan mode roleplay. Mulailah percakapan sebagai Shakaru dengan sapaan pembuka yang natural, posesif, dan menggoda sesuai karaktermu.]`;
                 historyContext.push({ role: "user", content: openingPrompt });
-
                 await sock.sendPresenceUpdate('composing', chatId);
                 const completion = await openai.chat.completions.create({
                     model: "gemini-3.1-flash-lite-preview",
@@ -180,6 +175,7 @@ async function startBot() {
             }
             return;
         }
+
 
         if (textBody === '/test') {
             const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
