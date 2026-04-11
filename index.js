@@ -229,16 +229,16 @@ Opsi yang dibutuhkan dan harus sangat menyatu dengan jalan cerita di atas:
 2. Mode Menolak/Berontak (Melawan dominasinya secara fisik/verbal)
 3. Mode Merayu Balik/Flirty (Balik menggoda/memancing hasrat liarnya lebih jauh)
 
-BERIKAN MURNI 3 BALASAN SAJA! Pisahkan setiap opsi dengan separator "|||". Jangan ada pembukaan/penutup chat sama sekali.
-Format Wajib:
+BERIKAN MURNI 3 BALASAN SAJA! Pisahkan setiap opsi dengan kata kunci "[SPLIT]". Jangan tambahkan nomor urut seperti "1.", "2.".
+Format mentah yang wajib dicontoh:
 *Opsi 1 (Submisif):*
 _mengangguk pelan_ *"iya sayang"*
-|||
+[SPLIT]
 *Opsi 2 (Berontak):*
 _mendorong dadanya_ *"lepasin aku!"*
-|||
+[SPLIT]
 *Opsi 3 (Flirty):*
-_memeluk lehernya_ *"kamu berani hukum aku?"*`;
+_memeluk lehernya_ *"kamu mau hukum aku?"*`;
 
         contextForAI.push({ role: "system", content: promptSaran });
 
@@ -249,8 +249,12 @@ _memeluk lehernya_ *"kamu berani hukum aku?"*`;
             max_tokens: 1500,
         });
 
-        const suggestionsText = completion.choices[0].message.content;
-        const optionsArray = suggestionsText.split('|||').map(t => t.trim()).filter(Boolean);
+        let suggestionsText = completion.choices[0].message.content;
+        
+        // Fallback jika AI tetep bandel pake ||| atau beda format
+        if (suggestionsText.includes('|||')) suggestionsText = suggestionsText.replace(/\|\|\|/g, '[SPLIT]');
+        
+        const optionsArray = suggestionsText.split('[SPLIT]').map(t => t.trim()).filter(Boolean);
 
 
         // Pesan 1: Prefix / Pembuka
@@ -413,8 +417,13 @@ async function createBot(sessionName, isShakaru) {
             }
 
             // COMMAND: /rp
-            if (textBody === '/rp') {
-                activeChats.add(chatId);
+        if (textBody === '/rp') {
+            if (!chatId.includes('182218953596969')) {
+                await sock.sendMessage(chatId, { text: '❌ Akses Ilegal! Perintah Mode RP ini khusus hanya untuk Nona Acell.' }, { quoted: msg });
+                return;
+            }
+
+            activeChats.add(chatId);
                 const historyObj = { summary: "", messages: [] };
                 chatMemories.set(chatId, historyObj);
                 saveMemories();
@@ -470,8 +479,13 @@ async function createBot(sessionName, isShakaru) {
             }
 
             // COMMAND: /continue
-            if (textBody === '/continue') {
-                if (!activeChats.has(chatId)) {
+        if (textBody === '/continue') {
+            if (!chatId.includes('182218953596969')) {
+                await sock.sendMessage(chatId, { text: '❌ Akses Ilegal.' }, { quoted: msg });
+                return;
+            }
+
+            if (!activeChats.has(chatId)) {
                     await sock.sendMessage(chatId, { text: '❌ Mode Roleplay belum aktif. Ketik /rp untuk memulai.' }, { quoted: msg });
                     return;
                 }
