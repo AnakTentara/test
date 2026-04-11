@@ -130,22 +130,29 @@ async function generateAndSendSuggestions(chatId, historyObj) {
     try {
         console.log(`\n[SISTEM SARAN] Sedang merumuskan 3 opsi balasan untuk Acell...`);
         
-        // Ambil 6 pesan terakhir buat konteks asisten
-        const lastFewMessages = historyObj.messages.slice(-6); 
-        const contextText = lastFewMessages.map(m => `${m.role === 'user' ? 'Acell' : 'Shakaru'}: ${m.content}`).join('\n');
+        // Membangun context yang sama persis dengan yang dikirim ke Shakaru agar AI paham LORE
+        const contextForAI = [
+            { role: "system", content: "Kamu adalah DIREKTUR SISTEM ROLEPLAY (SISTEM SARAN). Kamu mengetahui segala Latar Belakang Shakaru dan Acell:\n\n" + SYSTEM_PROMPT }
+        ];
 
-        const promptSaran = `Kamu adalah Asisten Roleplay rahasia. Berikan 3 opsi balasan dari sudut pandang Acell untuk merespon adegan terakhir Shakaru.
+        // Masukkan ingatan masa lalu jika ada
+        if (historyObj.summary) {
+            contextForAI.push({ role: "system", content: `PENGINGAT KONTEKS MASA LALU: ${historyObj.summary}` });
+        }
+
+        // Batasi jumlah pesan agar tidak overkill token (misal 15 pesan terakhir sudah cukup buat konteks saran)
+        const chatToInclude = historyObj.messages.slice(-15);
+        contextForAI.push(...chatToInclude);
+
+        const promptSaran = `Berhenti bermain peran sebagai Shakaru! Tugasmu sekarang sebagai Sistem adalah memberikan 3 opsi balasan dari sudut pandang Acell untuk merespon adegan terakhir Shakaru di atas.
 SANGAT PENTING: Terapkan format ini pada setiap saranmu:
 - Dialog suara wajib DITEBALKAN (*teks*)
 - Narasi/aksi fisik wajib DIMIRINGKAN (_teks_)
 
-Opsi yang dibutuhkan:
-1. Mode Pasrah/Submisif (Menerima perlakuannya)
-2. Mode Menolak/Berontak (Melawan secara fisik/verbal)
-3. Mode Merayu Balik/Flirty (Balik menggoda/memancing)
-
-Konteks Terakhir:
-${contextText}
+Opsi yang dibutuhkan dan harus sangat menyatu dengan jalan cerita di atas:
+1. Mode Pasrah/Submisif (Menerima perlakuan mafia posesif ini dengan luluh/takut)
+2. Mode Menolak/Berontak (Melawan dominasinya secara fisik/verbal)
+3. Mode Merayu Balik/Flirty (Balik menggoda/memancing hasrat liarnya lebih jauh)
 
 BERIKAN MURNI 3 BALASAN SAJA! Pisahkan setiap opsi dengan separator "|||". Jangan ada pembukaan/penutup chat sama sekali.
 Format Wajib:
@@ -158,15 +165,18 @@ _mendorong dadanya_ *"lepasin aku!"*
 *Opsi 3 (Flirty):*
 _memeluk lehernya_ *"kamu berani hukum aku?"*`;
 
+        contextForAI.push({ role: "system", content: promptSaran });
+
         const completion = await openai.chat.completions.create({
             model: "gemini-3.1-flash-lite-preview",
-            messages: [{ role: "user", content: promptSaran }],
+            messages: contextForAI,
             temperature: 0.8,
-            max_tokens: 1000,
+            max_tokens: 1500,
         });
 
         const suggestionsText = completion.choices[0].message.content;
         const optionsArray = suggestionsText.split('|||').map(t => t.trim()).filter(Boolean);
+
 
         // Pesan 1: Prefix / Pembuka
         await sockSaran.sendMessage(chatId, { text: `🌸 *SARAN BALASAN (Pilih & Edit)* 🌸` });
