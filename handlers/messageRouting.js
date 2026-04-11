@@ -1,6 +1,7 @@
 const { activeChats, saveMemories, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction } = require('./geminiRotator');
+const { generateVoice } = require('./voiceHandler');
 
 let reactionCooldowns = new Map();
 
@@ -88,6 +89,7 @@ _Teman Cerdas & Asik di Whatsapp by Haikal_
 *📜 Daftar Command Publik*:
 - *.help* : Menampilkan menu ini
 - *.ping* : Cek server VPS
+- *.vn [teks]* : Mengubah teks menjadi pesan suara/VN
 
 _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
         await sock.sendMessage(chatId, { text: helpText }, { quoted: msg });
@@ -105,6 +107,25 @@ _Catatan: Fitur Stiker sedang dalam tahap pengembangan!_`;
             return;
         }
         await forceShakaruContinue(sock, chatId, msg);
+        return;
+    }
+
+    // COMMAND: .vn [teks]
+    if (textBody.startsWith('.vn ')) {
+        const query = textBody.substring(4).trim();
+        if (!query) {
+            await sock.sendMessage(chatId, { text: '❌ Format salah. Contoh: .vn halo semua' }, { quoted: msg });
+            return;
+        }
+
+        try {
+            await sock.sendPresenceUpdate('recording', chatId);
+            const audioBuffer = await generateVoice(query, 'id-ID-ArdiNeural');
+            await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mp4', ptt: true }, { quoted: msg });
+        } catch (e) {
+            console.error('TTS Error:', e.message);
+            await sock.sendMessage(chatId, { text: '❌ Gagal membuat voice note.' }, { quoted: msg });
+        }
         return;
     }
 

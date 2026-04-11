@@ -1,6 +1,7 @@
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT, HAIKARU_PERSONA } = require('./persona');
 const { chatMemories, haikaruMemories, saveHaikaruMemories, saveMemories } = require('./dbHandler');
+const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -195,7 +196,16 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
     const lastMsg = historyObj.messages[historyObj.messages.length - 1];
     contextForAI.push(buildVisionMessage(lastMsg.role, lastMsg.content, imageObj));
 
-    console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... ${imageObj ? '(Dengan Gambar)' : ''}`);
+    // LOGIC VOICE NOTE: Jika acell cuma ngetik teks murni tanpa aksi fisik
+    const shouldVoiceNote = !hasPhysicalAction(textMessage) && !imageObj && textMessage.length > 0;
+    if (shouldVoiceNote) {
+        contextForAI.push({ 
+            role: "system", 
+            content: "[SISTEM: User HANYA BERDIALOG (tidak ada garis miring aksi fisik). KAMU WAJIB MEMBALAS HANYA DENGAN SATU ATAU DUA KALIMAT DIALOG MURNI! DILARANG KERAS MENGGUNAKAN SIMBOL MATA BINTANG (*) ATAU GARIS MIRING (_) ATAU DESKRIPSI FISIK APAPUN! Jawabanmu ini akan diconvert secara mentah menjadi AUDIO LISAN.]" 
+        });
+    }
+
+    console.log(`[${new Date().toLocaleTimeString()}] Shakaru sedang berpikir... ${imageObj ? '(Dengan Gambar) ' : ''}${shouldVoiceNote ? '(Voice Mode)' : ''}`);
     await sock.sendPresenceUpdate('composing', chatId);
 
     try {
@@ -216,7 +226,21 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
         console.log(answer);
         console.log(`=====================================================\n`);
 
-        await sendLongMessage(sock, chatId, answer, msg);
+        if (shouldVoiceNote && !hasPhysicalAction(answer)) {
+            // KIRIM SEBAGAI VOICE NOTE (PTT)
+            try {
+                await sock.sendPresenceUpdate('recording', chatId);
+                const audioBuffer = await generateVoice(answer, 'id-ID-ArdiNeural');
+                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/mp4', ptt: true }, { quoted: msg });
+            } catch (err) {
+                console.error('Gagal kirim VN, fallback ke teks:', err);
+                await sendLongMessage(sock, chatId, answer, msg);
+            }
+        } else {
+            // KIRIM TEXT BIASA
+            await sendLongMessage(sock, chatId, answer, msg);
+        }
+
         await sock.sendPresenceUpdate('paused', chatId);
 
         generateAndSendSuggestions(chatId, historyObj);
