@@ -116,11 +116,30 @@ async function startBot() {
         // Hanya proses pesan dari chat target
         if (chatId !== TARGET_CHAT) return;
 
-
         const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const textBody = textMessage.trim().toLowerCase();
 
         if (!textMessage) return;
+
+        // /aitest: bisa dari chat manapun, asal fromMe
+        if (textBody === '/aitest' && isFromMe) {
+            await sock.sendMessage(chatId, { text: '🔄 Menguji koneksi AI...' }, { quoted: msg });
+            try {
+                const result = await openai.chat.completions.create({
+                    model: 'gemini-3.1-flash-lite-preview',
+                    messages: [{ role: 'user', content: 'Balas hanya dengan kata: PONG' }],
+                    max_tokens: 10,
+                });
+                const reply = result.choices[0].message.content;
+                await sock.sendMessage(chatId, { text: `✅ AI OK! Respon: ${reply}` }, { quoted: msg });
+            } catch (err) {
+                await sock.sendMessage(chatId, { text: `❌ AI Error: ${err.message}` }, { quoted: msg });
+            }
+            return;
+        }
+
+        // Hanya proses pesan dari chat target
+        if (chatId !== TARGET_CHAT) return;
 
         if (textBody === '/rp') {
             activeChats.add(chatId);
