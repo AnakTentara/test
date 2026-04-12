@@ -6,7 +6,7 @@ const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories }
 const { setActiveVoice } = require('./voiceHandler');
 const { scrubThoughts, sendLongMessage } = require('./utils');
 const { getConfig, updateModel } = require('./configManager');
-const { classifyComplexity, startThinkingAnimation } = require('./thinkingRouter');
+const { classifyComplexity, startThinkingAnimation, startNormalAnimation } = require('./thinkingRouter');
 
 // ===== OWNER CONFIG (dari configManager) =====
 function getOwnerNumbers() { return getConfig().owner_numbers || []; }
@@ -534,6 +534,10 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
         } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
+            let normalAnim = null;
+            if (msg) normalAnim = await startNormalAnimation(sock, chatId, msg);
+            else await sock.sendPresenceUpdate('composing', chatId);
+
             const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
 
             completion = await client.chat.completions.create({
@@ -550,6 +554,10 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 temperature: 0.7,
                 max_tokens: 2000
             });
+            
+            if (normalAnim) normalAnim.stop();
+            // Simpan editKey buat dikirim ke sendLongMessage nanti (di scope fungsi luar butuh diselipkan)
+            if (normalAnim) msg.__editKeyForNormal = normalAnim.getKey();
         }
 
         const response = completion.choices[0].message;
@@ -599,7 +607,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
 
             console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${answer.substring(0, 50).replace(/\n/g, ' ')}...`);
-            await sendLongMessage(sock, chatId, answer, msg);
+            await sendLongMessage(sock, chatId, answer, msg, msg.__editKeyForNormal);
         }
     } catch (err) {
         console.error('[🤖 AGENT ERROR]', err.message);

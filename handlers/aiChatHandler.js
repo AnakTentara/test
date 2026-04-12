@@ -8,7 +8,7 @@ const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
 const { scrubThoughts, sendLongMessage } = require('./utils');
 const { getConfig } = require('./configManager');
-const { classifyComplexity, startThinkingAnimation } = require('./thinkingRouter');
+const { classifyComplexity, startThinkingAnimation, startNormalAnimation } = require('./thinkingRouter');
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -411,7 +411,12 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
 
     } else {
         // ===== MODE BIASA (26B) =====
-        await sock.sendPresenceUpdate('composing', chatId);
+        let normalAnim = null;
+        if (msg) {
+            normalAnim = await startNormalAnimation(sock, chatId, msg);
+        } else {
+            await sock.sendPresenceUpdate('composing', chatId);
+        }
         
         try {
             const _simpInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
@@ -432,6 +437,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             });
 
             const rawAnswer = completion.choices[0].message.content;
+            if (normalAnim) normalAnim.stop();
 
             // Log RAW (Full termasuk Thought) ke console
             console.log(`\n============== HAIKARU AI RAW RESPONSE ==============`);
@@ -444,10 +450,11 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             haikaruMemories.set(chatId, hHistory);
             saveSingleHaikaruMemory(chatId);
 
-            await sendLongMessage(sock, chatId, answer, msg);
+            await sendLongMessage(sock, chatId, answer, msg, normalAnim ? normalAnim.getKey() : null);
             await sock.sendPresenceUpdate('paused', chatId);
 
         } catch (error) {
+            if (normalAnim) normalAnim.stop();
             console.error('\n❌ Gagal menghubungi Haikaru AI:', error.message);
             await sock.sendPresenceUpdate('paused', chatId);
         }

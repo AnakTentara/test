@@ -115,12 +115,18 @@ function cleanWhatsAppFormat(text) {
 }
 
 // Fitur untuk mengirim pesan panjang berpotong-potong (Smart Splitter untuk Limit WA 1160 chars)
-async function sendLongMessage(sock, chatId, text, quotedMsg) {
+async function sendLongMessage(sock, chatId, text, quotedMsg, editKey = null) {
     const { addAiSentMessage } = require('./dbHandler');
     const maxLength = 1160;
 
     if (text.length <= maxLength) {
-        const sent = await sock.sendMessage(chatId, { text }, quotedMsg ? { quoted: quotedMsg } : undefined);
+        let sendOpts = { text };
+        let extraOpts = {};
+        
+        if (editKey) sendOpts.edit = editKey;
+        else if (quotedMsg) extraOpts.quoted = quotedMsg;
+
+        const sent = await sock.sendMessage(chatId, sendOpts, Object.keys(extraOpts).length > 0 ? extraOpts : undefined);
         if (sent?.key?.id) addAiSentMessage(sent.key.id);
         return [sent];
     }
@@ -174,7 +180,17 @@ async function sendLongMessage(sock, chatId, text, quotedMsg) {
     for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         const isFirst = i === 0;
-        const sent = await sock.sendMessage(chatId, { text: chunk }, isFirst && quotedMsg ? { quoted: quotedMsg } : undefined);
+        
+        let sendOpts = { text: chunk };
+        let extraOpts = {};
+
+        if (isFirst && editKey) {
+            sendOpts.edit = editKey;
+        } else if (isFirst && quotedMsg) {
+            extraOpts.quoted = quotedMsg;
+        }
+
+        const sent = await sock.sendMessage(chatId, sendOpts, Object.keys(extraOpts).length > 0 ? extraOpts : undefined);
         if (sent?.key?.id) addAiSentMessage(sent.key.id);
         sents.push(sent);
         if (i < chunks.length - 1) {
