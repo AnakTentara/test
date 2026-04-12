@@ -1,6 +1,6 @@
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT } = require('./persona');
-const { chatMemories, haikaruMemories, saveHaikaruMemories, saveMemories } = require('./dbHandler');
+const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
 
@@ -168,8 +168,8 @@ function buildVisionMessage(role, textContent, imageObj) {
 /**
  * Handle proses merespons chat Roleplay (Shakaru)
  */
-async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
-    let historyObj = chatMemories.get(chatId) || { summary: "", messages: [] };
+async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memoryFileName) {
+    let historyObj = chatMemories.get(chatId) || { id: chatId, fileName: memoryFileName, summary: "", messages: [] };
 
     const currentTimestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', timeZoneName: 'short' });
     const userPromptWithContext = `[INFO WAKTU SAAT INI UNTUKMU: ${currentTimestamp}]\nAcell: ${textMessage}`;
@@ -221,7 +221,7 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
 
         historyObj.messages.push({ role: "assistant", content: answer });
         chatMemories.set(chatId, historyObj);
-        saveMemories();
+        saveSingleShakaruMemory(chatId);
 
         console.log(`\n================== SHAKARU MEMBALAS ==================`);
         console.log(answer);
@@ -260,10 +260,10 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
 /**
  * Handle proses merespons chat Publik (Haikaru)
  */
-async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg) {
+async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memoryFileName) {
     console.log(`\n[${new Date().toLocaleTimeString()}] [HAIKARU] Pesan Publik (${chatId}): ${textMessage} ${imageObj ? '[IMAGE]' : ''}`);
 
-    let hHistory = haikaruMemories.get(chatId) || { messages: [] };
+    let hHistory = haikaruMemories.get(chatId) || { id: chatId, fileName: memoryFileName, messages: [] };
     
     // Jangan push imageBase64 ke permanent history agar memory.json tidak bengkak GB-an.
     // Kita hanya menggunakannya untuk *contextForAI* yang dikirim saat ini.
@@ -300,7 +300,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg) {
 
         hHistory.messages.push({ role: "assistant", content: answer });
         haikaruMemories.set(chatId, hHistory);
-        saveHaikaruMemories();
+        saveSingleHaikaruMemory(chatId);
 
         console.log(`\n============== HAIKARU ASISTEN MEMBALAS ==============`);
         console.log(answer);
@@ -346,7 +346,7 @@ async function forceShakaruContinue(sock, chatId, msg) {
         const answer = completion.choices[0].message.content;
         historyObj.messages.push({ role: "assistant", content: answer });
         chatMemories.set(chatId, historyObj);
-        saveMemories();
+        saveSingleShakaruMemory(chatId);
 
         await sendLongMessage(sock, chatId, answer, msg);
         await sock.sendPresenceUpdate('paused', chatId);

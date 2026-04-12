@@ -1,4 +1,4 @@
-const { activeChats, disabledChats, saveMemories, saveDisabledChats, chatMemories } = require('./dbHandler');
+const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
@@ -108,6 +108,24 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const buildPrefix = (text) =>
         `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
 
+    // === FILESYSTEM NAME GENERATOR ===
+    // Untuk menghasilkan memory terpisah per-chat
+    let groupSubject = '';
+    if (isGroup) {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            groupSubject = metadata.subject;
+        } catch { groupSubject = 'Grup'; }
+    }
+    const safePushName = pushName.replace(/[^a-zA-Z0-9-]/g, '_');
+    const safeGroupName = groupSubject.replace(/[^a-zA-Z0-9-]/g, '_');
+    const lidPartSafe = lidPart !== 'N/A' ? lidPart.replace('@lid', '') : '';
+    
+    // File prefix: haikal-08967... / GroupName-18751...
+    const memoryFileName = isGroup 
+        ? `${safeGroupName}-${lidPartSafe || numberPart}` 
+        : `${safePushName}-${numberPart}`;
+
     // Fungsi generate intro singkat dari AI untuk command otomatis
     async function getAICommandIntro(commandType) {
         try {
@@ -145,6 +163,13 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         saveDisabledChats(); // Simpan ke disabled-chats.yml
         return;
     }
+
+    // COMMAND: /resetmemory (KHUSUS OWNER)
+    if (textBody === '/resetmemory' && isFromMe) {
+        deleteMemory(chatId);
+        await sock.sendMessage(chatId, { text: '🔥 [SYSTEM] Sukses membersihkan/membakar memori file untuk kontak ini secara tuntas!' }, { quoted: msg });
+        return;
+    }
     // COMMAND: /rp
     if (textBody === '/rp') {
         if (!chatId.includes('182218953596969')) {
@@ -153,9 +178,9 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         }
 
         activeChats.add(chatId);
-        const historyObj = { summary: "", messages: [] };
+        const historyObj = { id: chatId, fileName: memoryFileName, summary: "", messages: [] };
         chatMemories.set(chatId, historyObj);
-        saveMemories();
+        saveSingleShakaruMemory(chatId);
 
         await sock.sendMessage(chatId, { text: '🔴 [SYSTEM] Mode Roleplay Shakaru AKTIF. Silakan mulai berinteraksi.' }, { quoted: msg });
         return;
@@ -165,8 +190,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     if (textBody === '/stop') {
         if (activeChats.has(chatId)) {
             activeChats.delete(chatId);
-            chatMemories.delete(chatId);
-            saveMemories();
+            saveActiveChats();
             await sock.sendMessage(chatId, { text: '⚪ [SYSTEM] Mode Roleplay Shakaru DIMATIKAN. Dialihkan ke Asisten Haikaru.' }, { quoted: msg });
         }
         return;
@@ -252,13 +276,10 @@ ${helpText}` : helpText;
 
     // =============== ROUTING LOGIC ===============
     
-    // Siapkan prefix yang memuat info kontak
-    const prefixMessage = buildPrefix(textMessage);
-
-    // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
+    // Siapkan prefix yang memuat info    // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
         incrementReply();
-        await processShakaruChat(sock, chatId, textMessage, imageObj, msg);
+        await processShakaruChat(sock, chatId, textMessage, imageObj, msg, memoryFileName);
     } 
     // ROUTING UNTUK BUKAN RP (OWNER & PUBLIK)
     else if (!activeChats.has(chatId) && !isFromMe) {
@@ -317,9 +338,10 @@ ${helpText}` : helpText;
 
         // 4. Jika bukan Owner dan bukan VN, jalankan Haikaru Publik biasa
         incrementReply();
-        await processHaikaruChat(sock, chatId, prefixMessage, imageObj, msg);
+        await processHaikaruChat(sock, chatId, prefixMessage, imageObj, msg, memoryFileName);
     }
 }
+
 module.exports = {
     handleIncomingMessage
 };
