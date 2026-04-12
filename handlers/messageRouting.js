@@ -297,11 +297,20 @@ ${helpText}` : helpText;
                              
             const isMentionedMeta = contextInfo.mentionedJid?.includes(botJid) || false;
             const isMentionedText = textMessage.includes(`@${botNumber}`);
+            
+            
+            const rawLid = sock.user?.lid || sock.authState?.creds?.me?.lid || '';
+            const botLid = rawLid ? rawLid.split('@')[0] : '';
+            const botLidJid = botLid + '@lid';
+            const isLidMentionedMeta = contextInfo.mentionedJid?.includes(botLidJid) || false;
+            const isLidMentionedText = botLid ? textMessage.includes(`@${botLid}`) : false;
+            
             const isReplied = contextInfo.participant === botJid && aiSentMessageIds.has(contextInfo.stanzaId);
 
-            console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botJid:${botJid} | Meta:${isMentionedMeta} | Text:${isMentionedText} | Replied:${isReplied}`);
+            console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botLid:${botLid} | RawMentions:`, contextInfo.mentionedJid);
+            console.log(`  -> MetaPN:${isMentionedMeta} | TextPN:${isMentionedText} | MetaLID:${isLidMentionedMeta} | TextLID:${isLidMentionedText} | Replied:${isReplied}`);
 
-            if (!isMentionedMeta && !isMentionedText && !isReplied) {
+            if (!isMentionedMeta && !isMentionedText && !isLidMentionedMeta && !isLidMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
             }
         }
