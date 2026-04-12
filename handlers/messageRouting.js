@@ -6,26 +6,7 @@ const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require
 const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
 const { runAgent, isOwner, incrementReply, incrementVN, getPersonaForChat } = require('./agentHandler');
-
-// ===== CONFIG LOAD =====
-const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
-let botConfig = {
-    models: { default: 'gemini-3.1-flash-lite-preview' },
-    commands: {
-        ping: ["/test", "/ping", ".ping"],
-        help: [".help", "/help"],
-        reset_memory: "/resetmemory",
-        roleplay_start: "/rp",
-        roleplay_stop: "/stop",
-        disable: "/disable",
-        enable: "/enable"
-    }
-};
-try {
-    if (fs.existsSync(CONFIG_FILE)) {
-        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    }
-} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
+const { getConfig } = require('./configManager');
 
 let reactionCooldowns = new Map();
 
@@ -178,7 +159,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
             const client = getLocalClient();
             const persona = getPersonaForChat(chatId);
             const completion = await client.chat.completions.create({
-                model: botConfig.models?.haikaru || botConfig.models?.default || 'gemini-3.1-flash-lite-preview',
+                model: getConfig().models?.haikaru || getConfig().models?.default || 'gemini-3.1-flash-lite-preview',
                 messages: [
                     { role: 'system', content: persona },
                     { role: 'user', content: `[SISTEM] User ${pushName} memanggil command .${commandType}. Berikan SATU kalimat singkat sebagai intro/pembuka yang ceria dan natural sebelum datanya muncul. JANGAN tambah info teknis, cukup kalimat pembuka!` }
@@ -191,8 +172,8 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /disable & /enable (KHUSUS OWNER)
-    const cmdDisable = botConfig.commands?.disable || '/disable';
-    const cmdEnable = botConfig.commands?.enable || '/enable';
+    const cmdDisable = getConfig().commands?.disable || '/disable';
+    const cmdEnable = getConfig().commands?.enable || '/enable';
     
     if ((textBody === cmdDisable || textBody === cmdEnable) && isFromMe) {
         if (textBody === cmdDisable) {
@@ -212,14 +193,14 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /resetmemory (KHUSUS OWNER)
-    const cmdReset = botConfig.commands?.reset_memory || '/resetmemory';
+    const cmdReset = getConfig().commands?.reset_memory || '/resetmemory';
     if (textBody === cmdReset && isFromMe) {
         deleteMemory(chatId);
         await sock.sendMessage(chatId, { text: '🔥 [SYSTEM] Sukses membersihkan/membakar memori file untuk kontak ini secara tuntas!' }, { quoted: msg });
         return;
     }
     // COMMAND: /rp
-    const cmdRP = botConfig.commands?.roleplay_start || '/rp';
+    const cmdRP = getConfig().commands?.roleplay_start || '/rp';
     if (textBody === cmdRP) {
         if (!chatId.includes('182218953596969')) {
             await sock.sendMessage(chatId, { text: '❌ Akses Ilegal! Perintah Mode RP ini khusus hanya untuk Nona Acell.' }, { quoted: msg });
@@ -236,7 +217,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /stop
-    const cmdStop = botConfig.commands?.roleplay_stop || '/stop';
+    const cmdStop = getConfig().commands?.roleplay_stop || '/stop';
     if (textBody === cmdStop) {
         if (activeChats.has(chatId)) {
             activeChats.delete(chatId);
@@ -247,7 +228,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /test /ping
-    const pingCommands = botConfig.commands?.ping || ['/test', '/ping', '.ping'];
+    const pingCommands = getConfig().commands?.ping || ['/test', '/ping', '.ping'];
     if (pingCommands.includes(textBody)) {
         const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
         const pingData = `🏓 *Pong!* Server running!
@@ -262,7 +243,7 @@ ${pingData}` : pingData;
     }
 
     // COMMAND: .help / /help
-    const helpCommands = botConfig.commands?.help || ['.help', '/help'];
+    const helpCommands = getConfig().commands?.help || ['.help', '/help'];
     if (helpCommands.includes(textBody)) {
         const helpText = `🤖 *AI-HAIKARU SYSTEM* 🤖
 _Teman Cerdas & Asik di Whatsapp by Haikal_

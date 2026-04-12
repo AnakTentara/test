@@ -7,17 +7,7 @@ const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakar
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
 const { scrubThoughts } = require('./utils');
-
-// ===== CONFIG LOAD =====
-const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
-let botConfig = {
-    models: { shakaru: 'gemini-3.1-flash-lite-preview', haikaru: 'gemini-3.1-flash-lite-preview', default: 'gemini-3.1-flash-lite-preview' }
-};
-try {
-    if (fs.existsSync(CONFIG_FILE)) {
-        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    }
-} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
+const { getConfig } = require('./configManager');
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -76,7 +66,7 @@ BERIKAN MURNI HASIL RINGKASAN NYA SAJA. Jangan ada kata pembuka. Ingat poin-poin
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
             messages: [{ role: "user", content: promptSummarize }],
             temperature: 0.5,
             max_tokens: 500,
@@ -138,7 +128,7 @@ _memeluk lehernya_ *"kamu mau hukum aku?"*`;
         contextForAI.push({ role: "system", content: promptSaran });
 
         const completion = await openaiShakaru.chat.completions.create({
-            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 1500,
@@ -229,7 +219,7 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 2000,
@@ -316,7 +306,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     try {
         const localClient = getLocalClient();
         const completion = await localClient.chat.completions.create({
-            model: botConfig.models?.haikaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+            model: getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.9,
             max_tokens: 800,
@@ -366,7 +356,7 @@ async function forceShakaruContinue(sock, chatId, msg) {
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 2000,
@@ -403,7 +393,7 @@ async function processHaikaruText(chatId, textMessage) {
 
     const localClient = getLocalClient();
     const completion = await localClient.chat.completions.create({
-        model: botConfig.models?.haikaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
+        model: getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
         messages: contextForAI,
         temperature: 0.9,
         max_tokens: 200,

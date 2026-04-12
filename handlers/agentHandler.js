@@ -5,21 +5,10 @@ const { getLocalClient } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories } = require('./dbHandler');
 const { setActiveVoice } = require('./voiceHandler');
 const { scrubThoughts } = require('./utils');
+const { getConfig, updateModel } = require('./configManager');
 
-// ===== CONFIG LOAD =====
-const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
-let botConfig = {
-    models: { agent: 'gemini-3.1-flash-lite-preview', default: 'gemini-3.1-flash-lite-preview' },
-    owner_numbers: ['6289675732001', '6285123097680']
-};
-try {
-    if (fs.existsSync(CONFIG_FILE)) {
-        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    }
-} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
-
-// ===== OWNER CONFIG =====
-const OWNER_NUMBERS = botConfig.owner_numbers || [];
+// ===== OWNER CONFIG (dari configManager) =====
+function getOwnerNumbers() { return getConfig().owner_numbers || []; }
 
 const PERSONAS_DIR = path.join(__dirname, '..', 'config', 'personas');
 const ACTIVE_CONFIG = path.join(PERSONAS_DIR, 'active.yml');
@@ -305,6 +294,21 @@ const AGENT_TOOLS = [
                 required: ["voice_id"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "change_model",
+            description: "Ganti model AI yang digunakan. Target bisa 'all' (semua), 'haikaru' (publik), 'shakaru' (roleplay), atau 'agent' (owner). Contoh model: 'gemini-3.1-flash-lite-preview', 'gemma-4-31b-it', 'gemma-4-26b-a4b-it'.",
+            parameters: {
+                type: "object",
+                properties: {
+                    target: { type: "string", enum: ["all", "default", "haikaru", "shakaru", "agent"], description: "Target mana yang diganti modelnya" },
+                    model_name: { type: "string", description: "Nama model AI yang akan digunakan" }
+                },
+                required: ["target", "model_name"]
+            }
+        }
     }
 ];
 
@@ -316,7 +320,7 @@ async function executeTool(toolName, args, chatId) {
             const currentPersona = readPersonaSlot(slot);
             const client = getLocalClient();
             const mergeCompletion = await client.chat.completions.create({
-                model: 'gemini-3.1-flash-lite-preview',
+                model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
                 messages: [
                     { role: 'system', content: 'Kamu adalah editor persona AI. Gabungkan persona lama dengan instruksi baru secara natural. Output hanya teks persona baru saja, tanpa komentar.' },
                     { role: 'user', content: `PERSONA LAMA:\n${currentPersona}\n\nINSTRUKSI BARU:\n${instruction}\n\nHasilkan persona yang telah diupdate:` }
@@ -414,6 +418,17 @@ async function executeTool(toolName, args, chatId) {
             return `✅ Suara berhasil diubah ke ID: *${args.voice_id}*`;
         }
 
+        case 'change_model': {
+            const { target, model_name } = args;
+            const success = updateModel(target, model_name);
+            if (success) {
+                const cfg = getConfig();
+                const modelList = Object.entries(cfg.models).map(([k, v]) => `  - *${k}*: ${v}`).join('\n');
+                return `✅ Model "${target}" berhasil diubah ke *${model_name}*!\n\n📋 *Model saat ini:*\n${modelList}`;
+            }
+            return `❌ Gagal mengubah model. Target "${target}" tidak valid.`;
+        }
+
         default:
             return `❓ Tool "${toolName}" tidak dikenal.`;
     }
@@ -438,7 +453,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
         } : { role: 'user', content: textMessage };
 
         const completion = await client.chat.completions.create({
-            model: botConfig.models?.agent || 'gemini-3.1-flash-lite-preview',
+            model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
             messages: [
                 {
                     role: 'system',
@@ -508,7 +523,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
 }
 
 function isOwner(identifier) {
-    return OWNER_NUMBERS.some(num => {
+    return getOwnerNumbers().some(num => {
         const localNum = '0' + num.slice(2);
         return identifier.includes(num) || identifier.includes(localNum);
     });
