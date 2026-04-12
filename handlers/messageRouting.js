@@ -41,6 +41,9 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     if (!textMessage && !imageObj) return;
 
     const textBody = textMessage.trim();
+    // Beri sedikit log sebelum diproses agar tidak "kosong" informasinya
+    console.log(`[📩 INBOX] Pesan dari ${pushName}: ${textBody.length > 50 ? textBody.substring(0, 50) + '...' : textBody}`);
+    
     const isGroup = chatId.endsWith('@g.us');
 
     // ==== CONTEXT PREFIX ====

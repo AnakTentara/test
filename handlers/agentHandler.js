@@ -413,23 +413,20 @@ async function executeTool(toolName, args, chatId) {
 async function runAgent(sock, chatId, textMessage, msg) {
     try {
         const client = getLocalClient();
-        const currentSlot = chatPersonaMap[chatId] || 'default';
+        const basePersona = getPersonaForChat(chatId);
 
         const completion = await client.chat.completions.create({
             model: 'gemini-3.1-flash-lite-preview',
             messages: [
                 {
                     role: 'system',
-                    content: `Kamu adalah Sistem Agent (SuperAdmin) bot WhatsApp Haikaru. Chat ini dalam persona: ${currentSlot}. 
-TUGAS UTAMAMU ADALAH MENGEKSEKUSI PERINTAH OWNER MENGGUNAKAN TOOLS YANG TERSEDIA!
-Jika Owner meminta atau mengomentari untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS (KARENA SISTEM TTS SUDAH ADA DI BACKEND).
-Jika bukan perintah sistem/konfigurasi, balas obrolan biasa.`
+                    content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                 },
                 { role: 'user', content: textMessage }
             ],
             tools: AGENT_TOOLS,
             tool_choice: 'auto',
-            temperature: 0.4,
+            temperature: 0.7,
             max_tokens: 500
         });
 
