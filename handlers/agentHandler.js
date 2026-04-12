@@ -548,7 +548,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 tools: AGENT_TOOLS,
                 tool_choice: 'auto',
                 temperature: 0.7,
-                max_tokens: 500
+                max_tokens: 2000
             });
         }
 

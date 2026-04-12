@@ -14,11 +14,10 @@ function scrubThoughts(text) {
         return cleanWhatsAppFormat(matchMatch[1].trim());
     }
 
-    // Prioritas 2: Split berdasarkan marker === FINAL ANSWER === (untuk kompabilitas lama)
-    const finalAnswerMarker = '=== FINAL ANSWER ===';
-    const markerIdx = cleaned.lastIndexOf(finalAnswerMarker);
-    if (markerIdx !== -1) {
-        cleaned = cleaned.substring(markerIdx + finalAnswerMarker.length).trim();
+    // Prioritas 2: Pemisah Final Answer 
+    const finalAnswerMatch = /^(?:=== FINAL ANSWER ===|FINAL ANSWER:)\s*([\s\S]*?)(?:===|$)/im.exec(cleaned);
+    if (finalAnswerMatch && finalAnswerMatch[1].trim() !== '') {
+        cleaned = finalAnswerMatch[1].trim();
         return cleanWhatsAppFormat(cleaned);
     }
 
