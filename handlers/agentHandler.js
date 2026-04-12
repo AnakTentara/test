@@ -6,6 +6,7 @@ const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories }
 const { setActiveVoice } = require('./voiceHandler');
 const { scrubThoughts } = require('./utils');
 const { getConfig, updateModel } = require('./configManager');
+const { classifyComplexity, startThinkingAnimation } = require('./thinkingRouter');
 
 // ===== OWNER CONFIG (dari configManager) =====
 function getOwnerNumbers() { return getConfig().owner_numbers || []; }
@@ -452,20 +453,97 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             ]
         } : { role: 'user', content: textMessage };
 
-        const completion = await client.chat.completions.create({
-            model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
-            messages: [
-                {
-                    role: 'system',
-                    content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
-                },
-                userMessage
-            ],
-            tools: AGENT_TOOLS,
-            tool_choice: 'auto',
-            temperature: 0.7,
-            max_tokens: 500
-        });
+        // ============================================================
+        // DEEP THINKING ROUTER UNTUK AGENT (OWNER)
+        // ============================================================
+        const thinkingModel = getConfig().models?.thinking;
+        const hasThinkingModel = !!thinkingModel;
+        
+        // Hanya classify jika ada thinking model yang dikonfigurasi DAN pesan cukup panjang
+        const isComplex = hasThinkingModel && textMessage && textMessage.length > 5
+            ? await classifyComplexity(textMessage)
+            : false;
+
+        let completion;
+        let thinkingAnim = null;
+        let timeoutTimer = null;
+
+        if (isComplex) {
+            console.log(`[🧠 AGENT DEEP THINK] Routing ke model thinking: ${thinkingModel}`);
+            try {
+                // Mulai animasi berfikir
+                thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
+                
+                const deepContext = [
+                    {
+                        role: 'system',
+                        content: `<|think|>\n${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                    },
+                    userMessage
+                ];
+
+                const TIMEOUT_MS = 15 * 60 * 1000;
+                const aiPromise = client.chat.completions.create({
+                    model: thinkingModel,
+                    messages: deepContext,
+                    tools: AGENT_TOOLS,
+                    tool_choice: 'auto',
+                    temperature: 0.7,
+                    max_tokens: 2000
+                });
+
+                const timeoutPromise = new Promise((_, reject) => {
+                    timeoutTimer = setTimeout(() => {
+                        reject(new Error('THINKING_TIMEOUT'));
+                    }, TIMEOUT_MS);
+                });
+
+                completion = await Promise.race([aiPromise, timeoutPromise]);
+                clearTimeout(timeoutTimer);
+                
+                if (thinkingAnim) thinkingAnim.stop(true);
+                // Delay kecil biar pesan "Selesai berfikir" terlihat dulu
+                await new Promise(r => setTimeout(r, 500));
+
+            } catch (error) {
+                if (timeoutTimer) clearTimeout(timeoutTimer);
+                if (thinkingAnim) thinkingAnim.stop(false);
+                
+                console.error('[🧠 AGENT DEEP THINK] Error:', error.message);
+                console.log('[🧠 AGENT DEEP THINK] Fallback ke model biasa...');
+                
+                completion = await client.chat.completions.create({
+                    model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                        },
+                        userMessage
+                    ],
+                    tools: AGENT_TOOLS,
+                    tool_choice: 'auto',
+                    temperature: 0.7,
+                    max_tokens: 500
+                });
+            }
+        } else {
+            // ===== MODE NORMAL AGENT =====
+            completion = await client.chat.completions.create({
+                model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                    },
+                    userMessage
+                ],
+                tools: AGENT_TOOLS,
+                tool_choice: 'auto',
+                temperature: 0.7,
+                max_tokens: 500
+            });
+        }
 
         const response = completion.choices[0].message;
         const rawAnswer = response.content || '';

@@ -15,7 +15,19 @@ function scrubThoughts(text) {
     cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
 
     // ============================================================
-    // TAHAP 2: Deteksi thinking Gemma-style berdasarkan STRUKTUR
+    // TAHAP 2: Split berdasarkan marker === FINAL ANSWER ===
+    //   Jika ada marker ini, ambil SEMUA teks setelahnya
+    // ============================================================
+    const finalAnswerMarker = '=== FINAL ANSWER ===';
+    const markerIdx = cleaned.lastIndexOf(finalAnswerMarker);
+    if (markerIdx !== -1) {
+        cleaned = cleaned.substring(markerIdx + finalAnswerMarker.length).trim();
+        // Langsung ke tahap formatting, skip deteksi struktur
+        return cleanWhatsAppFormat(cleaned);
+    }
+
+    // ============================================================
+    // TAHAP 3: Deteksi thinking Gemma-style berdasarkan STRUKTUR
     //   Gemma thinking = baris-baris yang diawali "*   " (3+ spasi)
     //   WA list biasa  = baris yang diawali "* " (1 spasi)
     //   Kita hitung: jika >30% baris non-kosong = thinking → scrub
@@ -28,15 +40,16 @@ function scrubThoughts(text) {
         && (thinkingLines.length / nonEmptyLines.length) > 0.3;
 
     if (isThinkingResponse) {
-        // --- STRATEGI A: Cari marker "Final Version:" / "Final Answer:" ---
-        const finalMarkers = [
+        // --- STRATEGI A: Cari marker teks final ---
+        const textMarkers = [
             '*Final Version:*', 'Final Version:', 
             '*Final Answer:*', 'Final Answer:',
+            '*Final Polish:*', 'Final Polish:',
             '*Response:*'
         ];
 
         let extracted = null;
-        for (const marker of finalMarkers) {
+        for (const marker of textMarkers) {
             const idx = cleaned.lastIndexOf(marker);
             if (idx !== -1) {
                 extracted = cleaned.substring(idx + marker.length).trim();
@@ -48,7 +61,6 @@ function scrubThoughts(text) {
             cleaned = extracted;
         } else {
             // --- STRATEGI B: Ambil paragraf terakhir yang "bersih" ---
-            // Pisahkan menjadi blok-blok, cari blok terakhir yang bukan thinking
             const blocks = cleaned.split(/\n\s*\n/);
             const cleanBlocks = [];
 
@@ -57,35 +69,39 @@ function scrubThoughts(text) {
                 const blockThinkingLines = blockLines.filter(l => /^\s*\*\s{2,}/.test(l));
                 const ratio = blockThinkingLines.length / blockLines.length;
 
-                // Blok dianggap "bersih" jika kurang dari 40% isinya adalah thinking
                 if (ratio < 0.4 && block.trim().length > 10) {
                     cleanBlocks.push(block.trim());
                 }
             }
 
             if (cleanBlocks.length > 0) {
-                // Ambil blok bersih terakhir (biasanya jawaban final)
                 cleaned = cleanBlocks[cleanBlocks.length - 1];
             }
-            // Kalau nggak ada blok bersih sama sekali, kirim apa adanya (fallback)
         }
     }
 
     // ============================================================
-    // TAHAP 3: Bersihkan sisa-sisa thinking yang mungkin lolos
-    //   - Hapus baris standalone yang cuma berisi label thinking
+    // TAHAP 4: Bersihkan sisa-sisa thinking labels 
     // ============================================================
-    cleaned = cleaned.replace(/^\s*\*\s*(Self-Correction|Refinement|Draft \d+|Check|Constraint|Bold|No markdown|Tone|Identity|Status|Plan|Context|Persona|User|Response|Output|Answer)[^*]*?\*?\s*$/gim, '');
+    cleaned = cleaned.replace(/^\s*\*\s*(Self-Correction|Refinement|Draft \d+|Check|Constraint|Bold|No markdown|Tone|Identity|Status|Plan|Context|Persona|User|Response|Output|Answer|Final Polish|Final Version)[^*]*?\*?\s*$/gim, '');
 
-    // ============================================================
-    // TAHAP 4: Perbaikan Format WhatsApp
-    //   - Hapus spasi di awal baris sebelum tanda list (* atau -)
-    //     "  * teks" → "* teks" agar WA parsing list dengan benar
-    // ============================================================
+    return cleanWhatsAppFormat(cleaned);
+}
+
+/**
+ * Bersihkan format agar sesuai standar WhatsApp.
+ */
+function cleanWhatsAppFormat(text) {
+    let cleaned = text;
+
+    // Hapus tanda kutip pembungkus di awal/akhir jika seluruh teks dibungkus quotes
+    cleaned = cleaned.replace(/^["']|["']$/g, '').trim();
+
+    // Hapus spasi di awal baris sebelum tanda list (* atau -)
     cleaned = cleaned.replace(/^\s+(\*\s)/gm, '$1');
     cleaned = cleaned.replace(/^\s+(-\s)/gm, '$1');
 
-    // Hapus baris kosong berlebih (lebih dari 2 berturut-turut)
+    // Hapus baris kosong berlebih
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
 
     return cleaned.trim();
