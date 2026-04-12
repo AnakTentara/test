@@ -2,6 +2,7 @@ models:
   default: "gemma-4-26b-a4b-it"
   shakaru: "gemini-3.1-flash-lite-preview"
   haikaru: "gemma-4-26b-a4b-it"
+  thinking: "gemma-4-31b-it"
   agent: "gemma-4-26b-a4b-it"
 
 owner_numbers:

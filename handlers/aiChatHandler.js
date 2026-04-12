@@ -274,7 +274,110 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
 }
 
 /**
+ * ============================================================
+ * DEEP THINKING SYSTEM: Dual-Model Router (26B → 31B)
+ * ============================================================
+ */
+
+/**
+ * Klasifikasi apakah pertanyaan membutuhkan deep thinking.
+ * Menggunakan model ringan (26B) untuk evaluasi cepat.
+ * @returns {Promise<boolean>} true jika COMPLEX
+ */
+async function classifyComplexity(textMessage) {
+    try {
+        const localClient = getLocalClient();
+        const completion = await localClient.chat.completions.create({
+            model: getConfig().models?.haikaru || 'gemma-4-26b-a4b-it',
+            messages: [
+                {
+                    role: 'system',
+                    content: `Kamu adalah classifier pertanyaan. Tugasmu HANYA menentukan apakah pesan user membutuhkan analisis mendalam atau tidak.
+
+Jawab HANYA dengan satu kata: SIMPLE atau COMPLEX.
+
+SIMPLE: sapaan, obrolan santai, pertanyaan singkat, gossip, curhat, lelucon, minta rekomendasi sederhana.
+COMPLEX: pertanyaan teknis/coding, analisis data, penjelasan konsep ilmiah, matematika, debugging, perbandingan mendalam, essay, soal ujian, pertanyaan yang butuh reasoning panjang.
+
+Contoh SIMPLE: "halo", "apa kabar", "kamu siapa", "rekomendasiin lagu dong", "lucu banget :v"
+Contoh COMPLEX: "jelaskan cara kerja transformer neural network", "buatkan kode python sorting", "analisis perbedaan TCP dan UDP", "kenapa langit berwarna biru secara fisika"`
+                },
+                { role: 'user', content: textMessage }
+            ],
+            temperature: 0.1,
+            max_tokens: 10,
+        });
+
+        const result = (completion.choices[0].message.content || '').trim().toUpperCase();
+        console.log(`[🧠 CLASSIFIER] "${textMessage.substring(0, 40)}..." → ${result}`);
+        return result.includes('COMPLEX');
+    } catch (err) {
+        console.error('[🧠 CLASSIFIER ERROR]', err.message);
+        return false; // Default ke SIMPLE jika classifier gagal
+    }
+}
+
+/**
+ * Format durasi detik menjadi string yang readable.
+ * 5 → "5s", 75 → "1m 15s"
+ */
+function formatDuration(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${s}s`;
+}
+
+/**
+ * Mulai animasi "Berfikir" di WhatsApp dengan edit pesan setiap detik.
+ * @returns {{ stop: Function, getKey: Function }} controller untuk menghentikan animasi
+ */
+async function startThinkingAnimation(sock, chatId, quotedMsg) {
+    const dots = ['.', '..', '...'];
+    let elapsed = 0;
+
+    // Kirim pesan awal
+    const sent = await sock.sendMessage(chatId, { text: `⏳ Berfikir. (0s)` }, { quoted: quotedMsg });
+    const messageKey = sent.key;
+
+    // Nyalakan typing indicator
+    await sock.sendPresenceUpdate('composing', chatId);
+
+    // Interval: edit pesan setiap detik
+    const interval = setInterval(async () => {
+        elapsed++;
+        const dot = dots[elapsed % 3];
+        const timeStr = formatDuration(elapsed);
+        try {
+            await sock.sendMessage(chatId, {
+                text: `⏳ Berfikir${dot} (${timeStr})`,
+                edit: messageKey
+            });
+            // Refresh typing indicator
+            await sock.sendPresenceUpdate('composing', chatId);
+        } catch (e) {
+            // Ignore edit errors (message might be too old)
+        }
+    }, 1000);
+
+    return {
+        stop: (success = true) => {
+            clearInterval(interval);
+            const timeStr = formatDuration(elapsed);
+            // Edit pesan final
+            const finalText = success
+                ? `✅ Selesai berfikir (${timeStr})`
+                : `❌ Gagal berfikir (timeout ${timeStr})`;
+            sock.sendMessage(chatId, { text: finalText, edit: messageKey }).catch(() => {});
+        },
+        getElapsed: () => elapsed,
+        getKey: () => messageKey
+    };
+}
+
+/**
  * Handle proses merespons chat Publik (Haikaru)
+ * Dengan routing otomatis ke Deep Thinking (31B) untuk pertanyaan kompleks.
  */
 async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memoryFileName) {
     console.log(`\n[${new Date().toLocaleTimeString()}] [HAIKARU] Pesan Publik (${chatId}): ${textMessage} ${imageObj ? '[IMAGE]' : ''}`);
@@ -282,15 +385,15 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     let hHistory = haikaruMemories.get(chatId) || { id: chatId, fileName: memoryFileName, messages: [] };
     
     // Jangan push imageBase64 ke permanent history agar memory.json tidak bengkak GB-an.
-    // Kita hanya menggunakannya untuk *contextForAI* yang dikirim saat ini.
     hHistory.messages.push({ role: "user", content: textMessage || "[Mengirim Gambar]" });
 
     if (hHistory.messages.length > 15) {
         hHistory.messages = hHistory.messages.slice(-15);
     }
 
+    const persona = getPersonaForChat(chatId);
     const contextForAI = [
-        { role: "system", content: getPersonaForChat(chatId) }
+        { role: "system", content: persona }
     ];
 
     for (let i = 0; i < hHistory.messages.length - 1; i++) {
@@ -301,36 +404,142 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     const lastMsgHaikaru = hHistory.messages[hHistory.messages.length - 1];
     contextForAI.push(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj));
 
-    await sock.sendPresenceUpdate('composing', chatId);
+    // ============================================================
+    // DEEP THINKING ROUTER
+    // ============================================================
+    const thinkingModel = getConfig().models?.thinking;
+    const hasThinkingModel = !!thinkingModel;
+    
+    // Hanya classify jika ada thinking model yang dikonfigurasi DAN bukan gambar saja
+    const isComplex = hasThinkingModel && textMessage && textMessage.length > 5
+        ? await classifyComplexity(textMessage)
+        : false;
 
-    try {
-        const localClient = getLocalClient();
-        const completion = await localClient.chat.completions.create({
-            model: getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
-            messages: contextForAI,
-            temperature: 0.9,
-            max_tokens: 800,
-        });
+    if (isComplex) {
+        // ===== MODE DEEP THINKING (31B) =====
+        console.log(`[🧠 DEEP THINK] Routing ke model thinking: ${thinkingModel}`);
+        
+        let thinkingAnim = null;
+        let timeoutTimer = null;
+        
+        try {
+            // Mulai animasi berfikir
+            thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
+            
+            // Siapkan context khusus deep thinking
+            // Prefix <|think|> di system prompt agar Gemma 31B masuk mode reasoning
+            const deepContextForAI = [
+                { role: "system", content: `<|think|>\n${persona}` },
+                ...contextForAI.slice(1) // Skip system prompt pertama (sudah diganti di atas)
+            ];
 
-        const rawAnswer = completion.choices[0].message.content;
+            const localClient = getLocalClient();
 
-        // Log RAW (Full termasuk Thought) ke console
-        console.log(`\n============== HAIKARU AI RAW RESPONSE ==============`);
-        console.log(rawAnswer);
-        console.log(`======================================================\n`);
+            // Race: AI response vs timeout 15 menit
+            const TIMEOUT_MS = 15 * 60 * 1000;
+            
+            const aiPromise = localClient.chat.completions.create({
+                model: thinkingModel,
+                messages: deepContextForAI,
+                temperature: 0.7,
+                max_tokens: 2000,
+            });
 
-        const answer = scrubThoughts(rawAnswer);
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutTimer = setTimeout(() => {
+                    reject(new Error('THINKING_TIMEOUT'));
+                }, TIMEOUT_MS);
+            });
 
-        hHistory.messages.push({ role: "assistant", content: answer });
-        haikaruMemories.set(chatId, hHistory);
-        saveSingleHaikaruMemory(chatId);
+            const completion = await Promise.race([aiPromise, timeoutPromise]);
+            clearTimeout(timeoutTimer);
 
-        await sendLongMessage(sock, chatId, answer, msg);
-        await sock.sendPresenceUpdate('paused', chatId);
+            const rawAnswer = completion.choices[0].message.content;
 
-    } catch (error) {
-        console.error('\n❌ Gagal menghubungi Haikaru AI:', error.message);
-        await sock.sendPresenceUpdate('paused', chatId);
+            // Log RAW (Full termasuk Thought) ke console
+            console.log(`\n============== DEEP THINKING RAW RESPONSE ==============`);
+            console.log(rawAnswer);
+            console.log(`=========================================================\n`);
+
+            const answer = scrubThoughts(rawAnswer);
+
+            // Stop animasi (sukses)
+            thinkingAnim.stop(true);
+
+            // Simpan ke history & kirim jawaban
+            hHistory.messages.push({ role: "assistant", content: answer });
+            haikaruMemories.set(chatId, hHistory);
+            saveSingleHaikaruMemory(chatId);
+
+            // Delay kecil biar pesan "Selesai berfikir" terlihat dulu
+            await new Promise(r => setTimeout(r, 500));
+            await sendLongMessage(sock, chatId, answer, msg);
+            await sock.sendPresenceUpdate('paused', chatId);
+
+        } catch (error) {
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            
+            if (error.message === 'THINKING_TIMEOUT') {
+                console.error('[🧠 DEEP THINK] Timeout 15 menit!');
+                if (thinkingAnim) thinkingAnim.stop(false);
+            } else {
+                console.error('[🧠 DEEP THINK] Error:', error.message);
+                if (thinkingAnim) thinkingAnim.stop(false);
+                // Fallback: coba pakai 26B biasa
+                console.log('[🧠 DEEP THINK] Fallback ke model biasa...');
+                try {
+                    const localClient = getLocalClient();
+                    const fallback = await localClient.chat.completions.create({
+                        model: getConfig().models?.haikaru || 'gemma-4-26b-a4b-it',
+                        messages: contextForAI,
+                        temperature: 0.9,
+                        max_tokens: 800,
+                    });
+                    const fbAnswer = scrubThoughts(fallback.choices[0].message.content);
+                    hHistory.messages.push({ role: "assistant", content: fbAnswer });
+                    haikaruMemories.set(chatId, hHistory);
+                    saveSingleHaikaruMemory(chatId);
+                    await sendLongMessage(sock, chatId, fbAnswer, msg);
+                } catch (fbErr) {
+                    console.error('[🧠 FALLBACK] Gagal total:', fbErr.message);
+                }
+            }
+            await sock.sendPresenceUpdate('paused', chatId);
+        }
+
+    } else {
+        // ===== MODE BIASA (26B) =====
+        await sock.sendPresenceUpdate('composing', chatId);
+        
+        try {
+            const localClient = getLocalClient();
+            const completion = await localClient.chat.completions.create({
+                model: getConfig().models?.haikaru || getConfig().models?.default || "gemma-4-26b-a4b-it",
+                messages: contextForAI,
+                temperature: 0.9,
+                max_tokens: 800,
+            });
+
+            const rawAnswer = completion.choices[0].message.content;
+
+            // Log RAW (Full termasuk Thought) ke console
+            console.log(`\n============== HAIKARU AI RAW RESPONSE ==============`);
+            console.log(rawAnswer);
+            console.log(`======================================================\n`);
+
+            const answer = scrubThoughts(rawAnswer);
+
+            hHistory.messages.push({ role: "assistant", content: answer });
+            haikaruMemories.set(chatId, hHistory);
+            saveSingleHaikaruMemory(chatId);
+
+            await sendLongMessage(sock, chatId, answer, msg);
+            await sock.sendPresenceUpdate('paused', chatId);
+
+        } catch (error) {
+            console.error('\n❌ Gagal menghubungi Haikaru AI:', error.message);
+            await sock.sendPresenceUpdate('paused', chatId);
+        }
     }
 }
 

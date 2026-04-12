@@ -7,10 +7,11 @@ const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
 // Default fallback jika config.yml tidak ada
 const DEFAULT_CONFIG = {
     models: {
-        default: 'gemini-3.1-flash-lite-preview',
+        default: 'gemma-4-26b-a4b-it',
         shakaru: 'gemini-3.1-flash-lite-preview',
-        haikaru: 'gemini-3.1-flash-lite-preview',
-        agent: 'gemini-3.1-flash-lite-preview'
+        haikaru: 'gemma-4-26b-a4b-it',
+        thinking: 'gemma-4-31b-it',
+        agent: 'gemma-4-26b-a4b-it'
     },
     owner_numbers: ['6289675732001', '6285123097680'],
     commands: {
