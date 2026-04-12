@@ -329,9 +329,12 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             // Mulai animasi berfikir
             thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
             
+            // Injeksi instruksi spesifik COMPLEX sebagai preamble terpisah di depan
+            const _strongInstruct = `[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+
             // Siapkan context khusus deep thinking
             const deepContextForAI = [
-                { role: "system", content: persona }
+                { role: "system", content: _strongInstruct + persona }
             ];
             
             // Rebuild context array untuk deepContext
@@ -339,17 +342,6 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                 deepContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
             }
             deepContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
-
-            // Injeksi instruksi spesifik COMPLEX
-            const _lastMsg = deepContextForAI[deepContextForAI.length - 1];
-            const _strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.`;
-            if (_lastMsg && _lastMsg.role === 'user') {
-                if (typeof _lastMsg.content === 'string') {
-                     _lastMsg.content += _strongInstruct;
-                } else if (Array.isArray(_lastMsg.content)) {
-                     _lastMsg.content.push({ type: 'text', text: _strongInstruct });
-                }
-            }
 
             const localClient = getLocalClient();
 
@@ -449,23 +441,14 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         await sock.sendPresenceUpdate('composing', chatId);
         
         try {
+            const _simpInstruct = `[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo kawan! Ada apa nih?</WhatsAppMessage>\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
             const simpleContextForAI = [
-                { role: "system", content: persona }
+                { role: "system", content: _simpInstruct + persona }
             ];
             for (let i = 0; i < hHistory.messages.length - 1; i++) {
                 simpleContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
             }
             simpleContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
-
-            const _lastMsgSimp = simpleContextForAI[simpleContextForAI.length - 1];
-            const _simpInstruct = `\n\n[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo kawan! Ada apa nih?</WhatsAppMessage>`;
-            if (_lastMsgSimp && _lastMsgSimp.role === 'user') {
-                if (typeof _lastMsgSimp.content === 'string') {
-                     _lastMsgSimp.content += _simpInstruct;
-                } else if (Array.isArray(_lastMsgSimp.content)) {
-                     _lastMsgSimp.content.push({ type: 'text', text: _simpInstruct });
-                }
-            }
 
             const localClient = getLocalClient();
             const completion = await localClient.chat.completions.create({
