@@ -127,9 +127,11 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     // === DYNAMIC BOT TAG REPLACER ===
     // Membantu AI memahami saat dirinya di-tag (karena format mentah dari WA cuma angka).
-    if (textMessage && sock?.user?.id) {
-        const botNumber = sock.user.id.split(':')[0].split('@')[0];
-        const tagRegex = new RegExp(`@${botNumber}\\b`, 'g');
+    const botRawId = sock?.user?.id || sock?.authState?.creds?.me?.id;
+    if (textMessage && botRawId) {
+        const botNumber = botRawId.split(':')[0].split('@')[0];
+        // Replace regex literal tanpa strict boundary yang kadang fail karena parsing
+        const tagRegex = new RegExp(`@${botNumber}`, 'g');
         textMessage = textMessage.replace(tagRegex, '@Haikaru (tagging you)');
     }
 
