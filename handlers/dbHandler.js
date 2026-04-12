@@ -6,6 +6,7 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const SHAKARU_DIR = path.join(DATA_DIR, 'shakaru_chats');
 const HAIKARU_DIR = path.join(DATA_DIR, 'haikaru_chats');
 const ACTIVE_CHATS_FILE = path.join(DATA_DIR, 'active_chats.json');
+const DISABLED_CHATS_FILE = path.join(__dirname, '..', 'config', 'disabled-chats.yml');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(SHAKARU_DIR)) fs.mkdirSync(SHAKARU_DIR, { recursive: true });

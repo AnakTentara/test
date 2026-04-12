@@ -103,10 +103,10 @@ function getPersonaForChat(chatId) {
     const slot = chatPersonaMap[chatId] || null;
     if (slot) {
         const slotFile = path.join(PERSONAS_DIR, `save-${slot}.txt`);
-        try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch {}
+        try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch { }
     }
     // Fallback ke default.txt (bukan active slot global)
-    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch {}
+    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch { }
     return 'Kamu adalah Haikaru, asisten AI yang ramah dan gaul.';
 }
 
@@ -114,8 +114,8 @@ function getPersonaForChat(chatId) {
 function getActivePersona() {
     const slot = getActiveSlot();
     const slotFile = path.join(PERSONAS_DIR, `save-${slot}.txt`);
-    try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch {}
-    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch {}
+    try { return fs.readFileSync(slotFile, 'utf8').trim(); } catch { }
+    try { return fs.readFileSync(DEFAULT_PERSONA, 'utf8').trim(); } catch { }
     return 'Kamu adalah Haikaru, asisten AI yang ramah dan gaul.';
 }
 
@@ -286,8 +286,8 @@ const AGENT_TOOLS = [
             parameters: {
                 type: "object",
                 properties: {
-                    voice_id: { 
-                        type: "string", 
+                    voice_id: {
+                        type: "string",
                         description: "ID Suara NOIZ yang dipilih",
                         enum: ['883b6b7c', 'ac09aeb4', '3b9f1e27', 'a845c7de', '87cb2405', '578b4be2', 'f00e45a1']
                     }
@@ -443,7 +443,7 @@ async function runAgent(sock, chatId, textMessage, msg) {
         } else {
             let reply = response.content || 'Ada yang bisa gue bantu?';
             const cleanReply = reply.trim().replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-            
+
             // Jaga-jaga kalau Gemini nge-return teks JSON manual alih-alih API Function Calling (ReAct halusinasi)
             if (cleanReply.startsWith('{') && cleanReply.includes('"action"')) {
                 try {
@@ -453,11 +453,11 @@ async function runAgent(sock, chatId, textMessage, msg) {
                         if (typeof parsedArgs === 'string') {
                             parsedArgs = JSON.parse(parsedArgs);
                         }
-                        
+
                         console.log(`\n[🤖 AGENT] Mengeksekusi manual JSON tool: ${parsed.action}`, parsedArgs);
                         // Cek kalau dia halusinasi ID, paksakan fallback
                         if (parsed.action === 'change_voice' && parsedArgs.voice_id && !['883b6b7c', 'ac09aeb4', '3b9f1e27', 'a845c7de', '87cb2405', '578b4be2', 'f00e45a1'].includes(parsedArgs.voice_id)) {
-                            parsedArgs.voice_id = '883b6b7c'; 
+                            parsedArgs.voice_id = '883b6b7c';
                         }
 
                         const result = await executeTool(parsed.action, parsedArgs, chatId);
@@ -468,7 +468,7 @@ async function runAgent(sock, chatId, textMessage, msg) {
                 }
             }
 
-            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0,50).replace(/\n/g, ' ')}...`);
+            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0, 50).replace(/\n/g, ' ')}...`);
             await sock.sendMessage(chatId, { text: reply }, { quoted: msg });
         }
     } catch (err) {
