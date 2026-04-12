@@ -286,12 +286,17 @@ ${helpText}` : helpText;
         
         // Pengecekan Grup: Haikaru/Agent HANYA muncul jika di tag atau di-reply!
         if (isGroup) {
-            const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-            const contextInfo = msg.message.extendedTextMessage?.contextInfo || {};
-            const isMentioned = contextInfo.mentionedJid?.includes(botJid) || false;
+            const botNumber = sock.user.id.split(':')[0];
+            const botJid = botNumber + '@s.whatsapp.net';
+            
+            const contextInfo = msg.message?.extendedTextMessage?.contextInfo 
+                             || msg.message?.imageMessage?.contextInfo || {};
+                             
+            const isMentionedMeta = contextInfo.mentionedJid?.includes(botJid) || false;
+            const isMentionedText = textMessage.includes(`@${botNumber}`);
             const isReplied = contextInfo.participant === botJid;
 
-            if (!isMentioned && !isReplied) {
+            if (!isMentionedMeta && !isMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
             }
         }
