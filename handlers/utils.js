@@ -8,10 +8,11 @@ function scrubThoughts(text) {
     if (!text) return text;
     let cleaned = text;
 
-    // Prioritas 1: Coba ekstrak wajib dari <WhatsAppMessage>
-    const matchMatch = cleaned.match(/<WhatsAppMessage>([\s\S]*?)<\/WhatsAppMessage>/i);
-    if (matchMatch && matchMatch[1]) {
-        return cleanWhatsAppFormat(matchMatch[1].trim());
+    // Prioritas 1: Coba ekstrak wajib dari <WhatsAppMessage> (Ambil yang paling terakhir untuk menghindari instruksi di atasnya)
+    const xmlMatches = [...cleaned.matchAll(/<WhatsAppMessage>([\s\S]*?)<\/WhatsAppMessage>/gi)];
+    if (xmlMatches.length > 0) {
+        const lastMatch = xmlMatches[xmlMatches.length - 1];
+        return cleanWhatsAppFormat(lastMatch[1].trim());
     }
 
     // Prioritas 2: Pemisah Final Answer 
