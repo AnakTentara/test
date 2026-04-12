@@ -305,10 +305,12 @@ ${helpText}` : helpText;
             const isLidMentionedMeta = contextInfo.mentionedJid?.includes(botLidJid) || false;
             const isLidMentionedText = botLid ? textMessage.includes(`@${botLid}`) : false;
             
-            const isReplied = contextInfo.participant === botJid && aiSentMessageIds.has(contextInfo.stanzaId);
+            // Reply detection: participant bisa berformat PN atau LID
+            const repliedParticipant = contextInfo.participant || '';
+            const isReplied = (repliedParticipant === botJid || repliedParticipant === botLidJid) && !!contextInfo.stanzaId;
 
             // console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botLid:${botLid} | RawMentions:`, contextInfo.mentionedJid);
-            // console.log(`  -> MetaPN:${isMentionedMeta} | TextPN:${isMentionedText} | MetaLID:${isLidMentionedMeta} | TextLID:${isLidMentionedText} | Replied:${isReplied}`);
+            // console.log(`  -> MetaPN:${isMentionedMeta} | TextPN:${isMentionedText} | MetaLID:${isLidMentionedMeta} | TextLID:${isLidMentionedText} | Replied:${isReplied} | repliedParticipant:${repliedParticipant}`);
 
             if (!isMentionedMeta && !isMentionedText && !isLidMentionedMeta && !isLidMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
