@@ -286,7 +286,11 @@ const AGENT_TOOLS = [
             parameters: {
                 type: "object",
                 properties: {
-                    voice_id: { type: "string", description: "ID Suara NOIZ yang dipilih" }
+                    voice_id: { 
+                        type: "string", 
+                        description: "ID Suara NOIZ yang dipilih",
+                        enum: ['883b6b7c', 'ac09aeb4', '3b9f1e27', 'a845c7de', '87cb2405', '578b4be2', 'f00e45a1']
+                    }
                 },
                 required: ["voice_id"]
             }
@@ -440,8 +444,34 @@ Jika bukan perintah sistem/konfigurasi, balas obrolan biasa.`
                 await sock.sendMessage(chatId, { text: result }, { quoted: msg });
             }
         } else {
-            const reply = response.content || 'Ada yang bisa gue bantu?';
-            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0,50)}...`);
+            let reply = response.content || 'Ada yang bisa gue bantu?';
+            const cleanReply = reply.trim().replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
+            
+            // Jaga-jaga kalau Gemini nge-return teks JSON manual alih-alih API Function Calling (ReAct halusinasi)
+            if (cleanReply.startsWith('{') && cleanReply.includes('"action"')) {
+                try {
+                    const parsed = JSON.parse(cleanReply);
+                    if (parsed.action) {
+                        let parsedArgs = parsed.action_input || {};
+                        if (typeof parsedArgs === 'string') {
+                            parsedArgs = JSON.parse(parsedArgs);
+                        }
+                        
+                        console.log(`\n[🤖 AGENT] Mengeksekusi manual JSON tool: ${parsed.action}`, parsedArgs);
+                        // Cek kalau dia halusinasi ID, paksakan fallback
+                        if (parsed.action === 'change_voice' && parsedArgs.voice_id && !['883b6b7c', 'ac09aeb4', '3b9f1e27', 'a845c7de', '87cb2405', '578b4be2', 'f00e45a1'].includes(parsedArgs.voice_id)) {
+                            parsedArgs.voice_id = '883b6b7c'; 
+                        }
+
+                        const result = await executeTool(parsed.action, parsedArgs, chatId);
+                        return await sock.sendMessage(chatId, { text: result }, { quoted: msg });
+                    }
+                } catch (e) {
+                    console.log("[🤖 AGENT] Fallback parser JSON gagal, melanjutkan sebagai teks biasa.");
+                }
+            }
+
+            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0,50).replace(/\n/g, ' ')}...`);
             await sock.sendMessage(chatId, { text: reply }, { quoted: msg });
         }
     } catch (err) {
