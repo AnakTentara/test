@@ -1,0 +1,6 @@
+# Mapping LID ke Nomor Telepon
+# Format: "xxx@lid": "628xxx"
+# Gunakan agent command: "daftarkan kontak ini sebagai 0812xxx"
+# atau tambahkan manual lalu restart bot.
+
+lid_map: {}

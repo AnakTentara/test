@@ -43,30 +43,41 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const textBody = textMessage.trim();
     const isGroup = chatId.endsWith('@g.us');
 
-    // ==== CONTEXT PREFIX (untuk disuntik ke AI context) ====
-    const now = new Date();
-    const jamTanggal = now.toLocaleString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-        day: '2-digit', month: '2-digit', year: 'numeric'
-    }).replace(',', '');
+    // ==== CONTEXT PREFIX ====
+    const nowDate = new Date();
+    const wibOffset = 7 * 60; // +7 GMT
+    const wibTime = new Date(nowDate.getTime() + (wibOffset - nowDate.getTimezoneOffset()) * 60000);
+    const HH = String(wibTime.getUTCHours()).padStart(2, '0');
+    const MM = String(wibTime.getUTCMinutes()).padStart(2, '0');
+    const DD = String(wibTime.getUTCDate()).padStart(2, '0');
+    const mo = String(wibTime.getUTCMonth() + 1).padStart(2, '0');
+    const YYYY = wibTime.getUTCFullYear();
+    const jamTanggal = `${DD}/${mo}/${YYYY} ${HH}.${MM}`;
+
+    // Konversi 628xxx → 0xxx (format lokal Indonesia)
+    const toLocal = (num) => num.startsWith('62') ? '0' + num.slice(2) : num;
 
     // Pisahkan Number vs LID dari chatId
     let numberPart = 'N/A';
     let lidPart = 'N/A';
+
+    const { resolveNumber } = require('./agentHandler');
+
     if (chatId.endsWith('@s.whatsapp.net')) {
-        numberPart = chatId.replace('@s.whatsapp.net', '');
+        numberPart = toLocal(chatId.replace('@s.whatsapp.net', ''));
     } else if (chatId.endsWith('@lid')) {
         lidPart = chatId;
-        if (msg.key.participant) numberPart = msg.key.participant.replace('@s.whatsapp.net', '');
+        const resolved = resolveNumber(chatId);
+        if (resolved) numberPart = toLocal(resolved);
+        if (msg.key.participant) numberPart = toLocal(msg.key.participant.replace('@s.whatsapp.net', ''));
     } else if (chatId.endsWith('@g.us') && msg.key.participant) {
         const p = msg.key.participant;
-        if (p.endsWith('@s.whatsapp.net')) numberPart = p.replace('@s.whatsapp.net', '');
-        else if (p.endsWith('@lid')) lidPart = p;
+        if (p.endsWith('@s.whatsapp.net')) numberPart = toLocal(p.replace('@s.whatsapp.net', ''));
+        else if (p.endsWith('@lid')) { lidPart = p; const r = resolveNumber(p); if (r) numberPart = toLocal(r); }
     }
 
     const buildPrefix = (text) =>
-        `[${jamTanggal} (GMT+7/Muara Enim/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
+        `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
 
     // Fungsi generate intro singkat dari AI untuk command otomatis
     async function getAICommandIntro(commandType) {

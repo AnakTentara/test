@@ -14,6 +14,34 @@ const PERSONAS_DIR = path.join(__dirname, '..', 'config', 'personas');
 const ACTIVE_CONFIG = path.join(PERSONAS_DIR, 'active.yml');
 const DEFAULT_PERSONA = path.join(PERSONAS_DIR, 'default.txt');
 const CHAT_PERSONAS_FILE = path.join(__dirname, '..', 'config', 'chat-personas.yml');
+const CONTACTS_FILE = path.join(__dirname, '..', 'config', 'contacts.yml');
+
+// ===== CONTACTS (LID -> Number Mapping) =====
+let contactsMap = {}; // "xxx@lid" -> "628xxx"
+
+function loadContacts() {
+    try {
+        if (fs.existsSync(CONTACTS_FILE)) {
+            const parsed = yaml.load(fs.readFileSync(CONTACTS_FILE, 'utf8'));
+            contactsMap = parsed?.lid_map || {};
+            console.log(`[INFO] Contacts dimuat: ${Object.keys(contactsMap).length} entri.`);
+        }
+    } catch (err) { console.error('[ERROR] Gagal muat contacts.yml:', err.message); }
+}
+
+function saveContacts() {
+    try {
+        fs.writeFileSync(CONTACTS_FILE, yaml.dump({ lid_map: contactsMap }, { lineWidth: -1 }));
+    } catch (err) { console.error('[ERROR] Gagal simpan contacts.yml:', err.message); }
+}
+
+/**
+ * Resolve LID ke nomor telepon (628xxx).
+ * Return null jika tidak ditemukan.
+ */
+function resolveNumber(lid) {
+    return contactsMap[lid] || null;
+}
 
 // ===== BOT STATS =====
 const botStats = {
@@ -233,6 +261,21 @@ const AGENT_TOOLS = [
                 required: ["chatId"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "map_contact",
+            description: "Daftarkan mapping LID ke nomor telepon. Gunakan saat user minta 'simpan nomor ini', 'daftarkan kontakku', atau sejenisnya.",
+            parameters: {
+                type: "object",
+                properties: {
+                    lid: { type: "string", description: "LID user dalam format xxx@lid" },
+                    phone: { type: "string", description: "Nomor telepon format 628xxx atau 08xxx" }
+                },
+                required: ["lid", "phone"]
+            }
+        }
     }
 ];
 
@@ -326,6 +369,17 @@ async function executeTool(toolName, args, chatId) {
             return `🔊 AI dihidupkan di *${target}*.`;
         }
 
+        case 'map_contact': {
+            let lid = args.lid;
+            if (!lid.endsWith('@lid')) lid = lid + '@lid';
+            // Normalisasi number: 08xxx → 628xxx
+            let phone = args.phone;
+            if (phone.startsWith('0')) phone = '62' + phone.slice(1);
+            contactsMap[lid] = phone;
+            saveContacts();
+            return `✅ Kontak terdaftar! *${lid}* → *${phone}*`;
+        }
+
         default:
             return `❓ Tool "${toolName}" tidak dikenal.`;
     }
@@ -382,6 +436,8 @@ module.exports = {
     getActivePersona,
     getPersonaForChat,
     loadChatPersonas,
+    loadContacts,
+    resolveNumber,
     botStats,
     incrementReply,
     incrementVN
