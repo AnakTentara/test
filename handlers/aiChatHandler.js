@@ -6,6 +6,7 @@ const { SYSTEM_PROMPT } = require('./persona');
 const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
+const { scrubThoughts } = require('./utils');
 
 // ===== CONFIG LOAD =====
 const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
@@ -234,7 +235,14 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
             max_tokens: 2000,
         });
 
-        const answer = completion.choices[0].message.content;
+        const rawAnswer = completion.choices[0].message.content;
+        
+        // Log RAW (Full termasuk Thought) ke console
+        console.log(`\n============== SHAKARU AI RAW RESPONSE ==============`);
+        console.log(rawAnswer);
+        console.log(`======================================================\n`);
+
+        const answer = scrubThoughts(rawAnswer);
 
         historyObj.messages.push({ role: "assistant", content: answer });
         chatMemories.set(chatId, historyObj);
@@ -314,15 +322,18 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             max_tokens: 800,
         });
 
-        const answer = completion.choices[0].message.content;
+        const rawAnswer = completion.choices[0].message.content;
+
+        // Log RAW (Full termasuk Thought) ke console
+        console.log(`\n============== HAIKARU AI RAW RESPONSE ==============`);
+        console.log(rawAnswer);
+        console.log(`======================================================\n`);
+
+        const answer = scrubThoughts(rawAnswer);
 
         hHistory.messages.push({ role: "assistant", content: answer });
         haikaruMemories.set(chatId, hHistory);
         saveSingleHaikaruMemory(chatId);
-
-        console.log(`\n============== HAIKARU ASISTEN MEMBALAS ==============`);
-        console.log(answer);
-        console.log(`======================================================\n`);
 
         await sendLongMessage(sock, chatId, answer, msg);
         await sock.sendPresenceUpdate('paused', chatId);
@@ -361,7 +372,9 @@ async function forceShakaruContinue(sock, chatId, msg) {
             max_tokens: 2000,
         });
 
-        const answer = completion.choices[0].message.content;
+        const rawAnswer = completion.choices[0].message.content;
+        const answer = scrubThoughts(rawAnswer);
+
         historyObj.messages.push({ role: "assistant", content: answer });
         chatMemories.set(chatId, historyObj);
         saveSingleShakaruMemory(chatId);
@@ -396,7 +409,9 @@ async function processHaikaruText(chatId, textMessage) {
         max_tokens: 200,
     });
 
-    const answer = completion.choices[0].message.content;
+    const rawAnswer = completion.choices[0].message.content;
+    const answer = scrubThoughts(rawAnswer);
+    
     hHistory.messages.push({ role: "assistant", content: answer });
     haikaruMemories.set(chatId, hHistory);
     saveSingleHaikaruMemory(chatId);

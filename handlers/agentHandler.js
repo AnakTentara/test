@@ -4,6 +4,7 @@ const yaml = require('js-yaml');
 const { getLocalClient } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories } = require('./dbHandler');
 const { setActiveVoice } = require('./voiceHandler');
+const { scrubThoughts } = require('./utils');
 
 // ===== CONFIG LOAD =====
 const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
@@ -452,6 +453,14 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
         });
 
         const response = completion.choices[0].message;
+        const rawAnswer = response.content || '';
+
+        // Log FULL RAW ke console untuk Owner
+        console.log(`\n============== AGENT AI RAW RESPONSE ==============`);
+        console.log(rawAnswer);
+        console.log(`====================================================\n`);
+
+        const answer = scrubThoughts(rawAnswer);
 
         if (response.tool_calls && response.tool_calls.length > 0) {
             for (const tc of response.tool_calls) {
@@ -489,8 +498,8 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 }
             }
 
-            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0, 50).replace(/\n/g, ' ')}...`);
-            await sock.sendMessage(chatId, { text: reply }, { quoted: msg });
+            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${answer.substring(0, 50).replace(/\n/g, ' ')}...`);
+            await sock.sendMessage(chatId, { text: answer }, { quoted: msg });
         }
     } catch (err) {
         console.error('[🤖 AGENT ERROR]', err.message);
