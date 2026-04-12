@@ -55,25 +55,51 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     const jamTanggal = `${DD}/${mo}/${YYYY} ${HH}.${MM}`;
 
     // Konversi 628xxx → 0xxx (format lokal Indonesia)
-    const toLocal = (num) => num.startsWith('62') ? '0' + num.slice(2) : num;
-
-    // Pisahkan Number vs LID dari chatId
-    let numberPart = 'N/A';
-    let lidPart = 'N/A';
+    const toLocal = (num) => num && num.startsWith('62') ? '0' + num.slice(2) : (num || 'N/A');
+    const stripSuffix = (jid) => jid ? jid.replace(/@.+$/, '') : null;
 
     const { resolveNumber } = require('./agentHandler');
 
+    // ===== Baileys v7: remoteJidAlt & participantAlt =====
+    // Jika chatId adalah @lid, maka remoteJidAlt = PN (@s.whatsapp.net), dan sebaliknya
+    const remoteJidAlt = msg.key.remoteJidAlt || null;
+    const participantAlt = msg.key.participantAlt || null;
+
+    let numberPart = 'N/A';
+    let lidPart = 'N/A';
+
     if (chatId.endsWith('@s.whatsapp.net')) {
-        numberPart = toLocal(chatId.replace('@s.whatsapp.net', ''));
+        // Chat biasa pakai PN — coba cari LID-nya dari alt
+        numberPart = toLocal(stripSuffix(chatId));
+        if (remoteJidAlt && remoteJidAlt.endsWith('@lid')) lidPart = remoteJidAlt;
+
     } else if (chatId.endsWith('@lid')) {
+        // Chat pakai LID — ambil PN dari remoteJidAlt (Baileys v7)
         lidPart = chatId;
-        const resolved = resolveNumber(chatId);
-        if (resolved) numberPart = toLocal(resolved);
-        if (msg.key.participant) numberPart = toLocal(msg.key.participant.replace('@s.whatsapp.net', ''));
-    } else if (chatId.endsWith('@g.us') && msg.key.participant) {
-        const p = msg.key.participant;
-        if (p.endsWith('@s.whatsapp.net')) numberPart = toLocal(p.replace('@s.whatsapp.net', ''));
-        else if (p.endsWith('@lid')) { lidPart = p; const r = resolveNumber(p); if (r) numberPart = toLocal(r); }
+        if (remoteJidAlt && remoteJidAlt.endsWith('@s.whatsapp.net')) {
+            numberPart = toLocal(stripSuffix(remoteJidAlt));
+        } else {
+            // Fallback: manual mapping dari contacts.yml
+            const resolved = resolveNumber(chatId);
+            if (resolved) numberPart = toLocal(resolved);
+        }
+
+    } else if (chatId.endsWith('@g.us')) {
+        // Pesan grup — pakai participant
+        const p = msg.key.participant || '';
+        const pAlt = participantAlt || '';
+        if (p.endsWith('@s.whatsapp.net')) {
+            numberPart = toLocal(stripSuffix(p));
+            if (pAlt.endsWith('@lid')) lidPart = pAlt;
+        } else if (p.endsWith('@lid')) {
+            lidPart = p;
+            if (pAlt.endsWith('@s.whatsapp.net')) {
+                numberPart = toLocal(stripSuffix(pAlt));
+            } else {
+                const resolved = resolveNumber(p);
+                if (resolved) numberPart = toLocal(resolved);
+            }
+        }
     }
 
     const buildPrefix = (text) =>
