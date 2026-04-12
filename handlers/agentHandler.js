@@ -483,7 +483,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 ];
 
                 const lastMsg = deepContext[deepContext.length - 1];
-                const strongInstruct = `\n\n[SISTEM]: Ingat, kamu WAJIB memikirkan jawabanmu secara mendalam terlebih dahulu (gunakan bullet points atau <thought>). Setelah pemikiran selesai, kamu WAJIB menuliskan kata "=== FINAL ANSWER ===" di baris baru, diikuti dengan jawaban yang akan dikirim ke user!`;
+                const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n<thought>\n[Write your internal reasoning, planning, and persona checks here]\n</thought>\n\n=== FINAL ANSWER ===\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]`;
                 
                 if (typeof lastMsg.content === 'string') {
                     lastMsg.content += strongInstruct;
