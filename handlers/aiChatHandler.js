@@ -339,7 +339,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
 
             // Injeksi instruksi tegas di pesan terakhir agar model patuh
             const lastMsg = deepContextForAI[deepContextForAI.length - 1];
-            const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n<thought>\n[Write your internal reasoning, planning, and persona checks here]\n</thought>\n\n=== FINAL ANSWER ===\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]`;
+            const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
             
             if (lastMsg && lastMsg.role === 'user') {
                 if (typeof lastMsg.content === 'string') {

@@ -6,84 +6,47 @@
  */
 function scrubThoughts(text) {
     if (!text) return text;
-
     let cleaned = text;
 
-    // ============================================================
-    // TAHAP 1: Hapus tag eksplisit <thought>...</thought>
-    // ============================================================
-    cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+    // Prioritas 1: Coba ekstrak wajib dari <WhatsAppMessage>
+    const matchMatch = cleaned.match(/<WhatsAppMessage>([\s\S]*?)<\/WhatsAppMessage>/i);
+    if (matchMatch && matchMatch[1]) {
+        return cleanWhatsAppFormat(matchMatch[1].trim());
+    }
 
-    // ============================================================
-    // TAHAP 2: Split berdasarkan marker === FINAL ANSWER ===
-    //   Jika ada marker ini, ambil SEMUA teks setelahnya
-    // ============================================================
+    // Prioritas 2: Split berdasarkan marker === FINAL ANSWER === (untuk kompabilitas lama)
     const finalAnswerMarker = '=== FINAL ANSWER ===';
     const markerIdx = cleaned.lastIndexOf(finalAnswerMarker);
     if (markerIdx !== -1) {
         cleaned = cleaned.substring(markerIdx + finalAnswerMarker.length).trim();
-        // Langsung ke tahap formatting, skip deteksi struktur
         return cleanWhatsAppFormat(cleaned);
     }
 
-    // ============================================================
-    // TAHAP 3: Deteksi thinking Gemma-style berdasarkan STRUKTUR
-    //   Gemma thinking = baris-baris yang diawali "*   " (3+ spasi)
-    //   WA list biasa  = baris yang diawali "* " (1 spasi)
-    //   Kita hitung: jika >30% baris non-kosong = thinking → scrub
-    // ============================================================
+    // Prioritas 3: Hapus manual tag <thought>
+    cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+
+    // Prioritas 4: Jika Model masih membandel pakai bullet point CoT tanpa tag XML
     const lines = cleaned.split('\n');
     const nonEmptyLines = lines.filter(l => l.trim().length > 0);
     const thinkingLines = nonEmptyLines.filter(l => /^\s*\*\s{2,}/.test(l));
 
-    const isThinkingResponse = thinkingLines.length > 3 
-        && (thinkingLines.length / nonEmptyLines.length) > 0.3;
+    const isThinkingResponse = thinkingLines.length > 3 && (thinkingLines.length / nonEmptyLines.length) > 0.3;
 
     if (isThinkingResponse) {
-        // --- STRATEGI A: Cari marker teks final ---
-        const textMarkers = [
-            '*Final Version:*', 'Final Version:', 
-            '*Final Answer:*', 'Final Answer:',
-            '*Final Polish:*', 'Final Polish:',
-            '*Response:*'
-        ];
-
-        let extracted = null;
-        for (const marker of textMarkers) {
-            const idx = cleaned.lastIndexOf(marker);
-            if (idx !== -1) {
-                extracted = cleaned.substring(idx + marker.length).trim();
-                break;
-            }
-        }
-
-        if (extracted && extracted.length > 10) {
-            cleaned = extracted;
+        // Coba cari kutipan text (sering model menulis respon finalnya dalam tanda kutip di dalam bullet poin akhir)
+        const quoteMatch = cleaned.match(/"([^"]+)"\s*(?:\n|$)/);
+        if (quoteMatch && quoteMatch[1] && quoteMatch[1].length > 10) {
+            cleaned = quoteMatch[1];
         } else {
-            // --- STRATEGI B: Ambil paragraf terakhir yang "bersih" ---
-            const blocks = cleaned.split(/\n\s*\n/);
-            const cleanBlocks = [];
-
-            for (const block of blocks) {
-                const blockLines = block.trim().split('\n');
-                const blockThinkingLines = blockLines.filter(l => /^\s*\*\s{2,}/.test(l));
-                const ratio = blockThinkingLines.length / blockLines.length;
-
-                if (ratio < 0.4 && block.trim().length > 10) {
-                    cleanBlocks.push(block.trim());
-                }
-            }
-
-            if (cleanBlocks.length > 0) {
-                cleaned = cleanBlocks[cleanBlocks.length - 1];
+            // Hitu sisa-sisa label thinking 
+            cleaned = cleaned.replace(/^\s*\*\s*(Self-Correction|Refinement|Draft \d+|Check|Constraint|Bold|No markdown|Tone|Identity|Status|Plan|Context|Persona|User|Response|Output|Answer|Final Polish|Final Version|Result|Option \d+|Style|Greeting|Relationship|Input|Creator info|Start |Explain |Mention |Compare |Use )[^*]*?\*?\s*$/gim, '');
+            // Buang semua baris yang masih diawali asterisk + spasi banyak
+            const newLines = cleaned.split('\n').filter(l => !/^\s*\*\s{2,}/.test(l));
+            if (newLines.length > 0) {
+                cleaned = newLines.join('\n');
             }
         }
     }
-
-    // ============================================================
-    // TAHAP 4: Bersihkan sisa-sisa thinking labels 
-    // ============================================================
-    cleaned = cleaned.replace(/^\s*\*\s*(Self-Correction|Refinement|Draft \d+|Check|Constraint|Bold|No markdown|Tone|Identity|Status|Plan|Context|Persona|User|Response|Output|Answer|Final Polish|Final Version)[^*]*?\*?\s*$/gim, '');
 
     return cleanWhatsAppFormat(cleaned);
 }
