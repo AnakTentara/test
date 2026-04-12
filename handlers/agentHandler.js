@@ -522,7 +522,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                     messages: [
                         {
                             role: 'system',
-                            content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.`
+                            content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nLANGSUNG BALAS PESAN USER. JANGAN menulis analisis, JANGAN menulis bullet point, JANGAN menulis draft, JANGAN menulis checklist. LANGSUNG TULIS JAWABAN CHAT SAJA seperti kamu sedang mengetik di WhatsApp. Tidak perlu memikirkan format, langsung jawab secara natural.`
                         },
                         userMessage
                     ],
@@ -538,7 +538,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             if (msg) normalAnim = await startNormalAnimation(sock, chatId, msg);
             else await sock.sendPresenceUpdate('composing', chatId);
 
-            const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
+            const simpleInstruct = `\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nLANGSUNG BALAS PESAN USER. JANGAN menulis analisis, JANGAN menulis bullet point, JANGAN menulis draft, JANGAN menulis checklist. LANGSUNG TULIS JAWABAN CHAT SAJA seperti kamu sedang mengetik di WhatsApp. Tidak perlu memikirkan format, langsung jawab secara natural.`;
 
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',

@@ -2,13 +2,22 @@
  * Membersihkan respon AI dari blok pemikiran (Chain of Thought / CoT)
  * dan memperbaiki format agar sesuai dengan standar WhatsApp.
  * 
- * Mendukung model-model "thinking" seperti Gemma-4, DeepSeek, dsb.
+ * STRATEGI: "Biarkan model mikir, kita yang bersihkan."
+ * Model Gemma-4 tidak punya pemisah thinking bawaan, jadi scrubber ini
+ * harus bisa menangani SEMUA kemungkinan format output.
  */
 function scrubThoughts(text) {
     if (!text) return text;
     let cleaned = text;
 
-    // Prioritas 1: Ekstraksi Blok <WhatsAppMessage> yang paling akhir (paling andal)
+    // ============================================================
+    // LAYER 1: Ekstraksi tag eksplisit (paling andal jika ada)
+    // ============================================================
+
+    // Pre-processing: Hapus mention tag yang dibungkus backtick (model suka nulis `<thought>` dan `<WhatsAppMessage>` sebagai referensi format)
+    cleaned = cleaned.replace(/`<\/?(?:thought|WhatsAppMessage)>`/gi, '[TAG_REF]');
+
+    // 1A: Tag <WhatsAppMessage> (Claude-style yang kita inject)
     const startTag = '<WhatsAppMessage>';
     const endTag = '</WhatsAppMessage>';
     const lastStartIdx = cleaned.lastIndexOf(startTag);
@@ -17,82 +26,201 @@ function scrubThoughts(text) {
     if (lastStartIdx !== -1) {
         let extracted = '';
         if (lastEndIdx !== -1 && lastEndIdx > lastStartIdx) {
-            // Kasus normal: ada pasangan tag lengkap
             extracted = cleaned.substring(lastStartIdx + startTag.length, lastEndIdx).trim();
         } else {
-            // Kasus toleran: tag penutup hilang atau terpotong, ambil sisa pesan
             extracted = cleaned.substring(lastStartIdx + startTag.length).trim();
         }
-        // Bersihkan jika ada sisa-sisa backtick atau tag penutup yang rusak di ujung
         extracted = extracted.replace(/<\/WhatsAppMessage>?/gi, '').replace(/```+$/g, '').replace(/`+$/g, '').trim();
-        if (extracted.length > 0) return cleanWhatsAppFormat(extracted);
+        // Validasi: pastikan hasil ekstraksi adalah jawaban nyata, bukan sisa CoT pendek
+        if (extracted.length > 10 && !looksLikeThinking(extracted)) {
+            return cleanWhatsAppFormat(extracted);
+        }
     }
 
-    // Prioritas 2: Pemisah Final Answer 
+    // 1B: Pemisah "=== FINAL ANSWER ===" 
     const finalAnswerMatch = /^(?:=== FINAL ANSWER ===|FINAL ANSWER:)\s*([\s\S]*?)(?:===|$)/im.exec(cleaned);
     if (finalAnswerMatch && finalAnswerMatch[1].trim() !== '') {
-        cleaned = finalAnswerMatch[1].trim();
+        return cleanWhatsAppFormat(finalAnswerMatch[1].trim());
+    }
+
+    // 1C: Hapus blok <thought>...</thought> yang sempurna
+    cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+    // Juga hapus <thought> yang terbuka tanpa penutup (truncated) — hanya di awal baris
+    cleaned = cleaned.replace(/^\s*<thought>[\s\S]*/gim, '').trim();
+
+    // Jika setelah pembersihan tag masih ada isi, cek dulu apakah bersih
+    if (cleaned.length > 0 && !looksLikeThinking(cleaned)) {
         return cleanWhatsAppFormat(cleaned);
     }
 
-    // Prioritas 3: Hapus manual tag <thought>
-    cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '').trim();
+    // ============================================================
+    // LAYER 2: Heuristic Bullet-Point CoT Detection
+    // Mendeteksi pola "mikir keras" khas Gemma-4:
+    //   *   User: ...
+    //   *   Message: ...
+    //   *   Draft: ...
+    // ============================================================
 
-    // Prioritas 4: Jika Model masih membandel pakai bullet point CoT tanpa tag XML
-    const lines = cleaned.split('\n');
-    const nonEmptyLines = lines.filter(l => l.trim().length > 0);
-    // Deteksi baris yang diawali dengan asterisk (bullet point)
-    const thinkingLines = nonEmptyLines.filter(l => /^\s*\*/.test(l));
-
-    // Jika lebih dari 30% baris adalah bullet point, kemungkinan ini adalah CoT bocor
-    const isThinkingResponse = thinkingLines.length > 2 && (thinkingLines.length / nonEmptyLines.length) > 0.3;
-
-    if (isThinkingResponse) {
-        // Daftar marker penutup pikiran (Gemma/Gemma-4 style)
-        const textMarkers = [
-            '*Response:*', 'Response:',
-            '*Final Polish:*', 'Final Polish:',
-            '*Final Version:*', 'Final Version:', 
-            '*Draft:*', 'Draft:',
-            '*Final Answer:*', 'Final Answer:'
-        ];
-
-        let extracted = null;
-        for (const marker of textMarkers) {
-            const idx = cleaned.lastIndexOf(marker);
-            if (idx !== -1) {
-                extracted = cleaned.substring(idx + marker.length).trim();
-                // Buang jika ada bullet point asterisk sisa di awal baris hasil ekstrak
-                extracted = extracted.replace(/^\s*\*\s*/gim, '');
-                break;
-            }
-        }
-
-        if (extracted && extracted.length > 5) {
-            cleaned = extracted;
-        } else {
-            // Coba cari baris terakhir yang BUKAN dimulai dengan asterisk (seringkali ini jawaban aslinya)
-            const reverseLines = [...lines].reverse();
-            const lastNormalLineIdx = reverseLines.findIndex(l => l.trim().length > 0 && !/^\s*\*/.test(l));
-            
-            if (lastNormalLineIdx !== -1) {
-                 // Ambil kumpulan baris normal dari bawah sampai ketemu block asterisk lagi
-                 let resultLines = [];
-                 for(let i=lastNormalLineIdx; i<reverseLines.length; i++) {
-                     if (/^\s*\*/.test(reverseLines[i])) break;
-                     resultLines.unshift(reverseLines[i]);
-                 }
-                 if (resultLines.length > 0) cleaned = resultLines.join('\n').trim();
-            } else {
-                 // Fallback terakhir: buang semua baris yang terindikasi label pemikiran
-                 cleaned = cleaned.split('\n')
-                    .filter(l => !/^\s*\*\s*\(?[A-Z][A-Za-z\s-]*\)?\s*:/.test(l))
-                    .join('\n').trim();
-            }
+    if (looksLikeThinking(cleaned)) {
+        const extracted = extractAnswerFromThinking(cleaned);
+        if (extracted && extracted.length > 3) {
+            return cleanWhatsAppFormat(extracted);
         }
     }
 
     return cleanWhatsAppFormat(cleaned);
+}
+
+/**
+ * Deteksi apakah sebuah teks kemungkinan besar adalah CoT bocor.
+ */
+function looksLikeThinking(text) {
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) return false;
+
+    // Hitung baris yang diawali pola bullet-point thinking
+    let thinkingCount = 0;
+    for (const line of lines) {
+        const t = line.trim();
+        if (
+            /^\*\s+/.test(t) ||                    // *   bullet (trimmed)
+            /^\*\s*\*[A-Za-z]/.test(t) ||          // *   *Draft:* / *   *Applying*
+            /^\*\s+\(?[A-Z][a-zA-Z\s\/-]*\)?:/.test(t) || // *   User: / *   Message:
+            /^\(\w+/.test(t) ||                     // (Self-correction:...)
+            /^-\s+(Single asterisk|No double|Tags used|Simple mode|Draft|Applying|Constraint|Tone|Output)/i.test(t)
+        ) {
+            thinkingCount++;
+        }
+    }
+
+    // Jika >30% baris terlihat seperti thinking, anggap CoT
+    return thinkingCount >= 2 && (thinkingCount / lines.length) > 0.25;
+}
+
+/**
+ * Ekstrak jawaban final dari teks yang terdeteksi sebagai CoT bocor.
+ * Mencoba berbagai strategi extraksi dari yang paling reliable ke fallback.
+ */
+function extractAnswerFromThinking(text) {
+    // === Strategi A: Cari marker yang menandai jawaban final ===
+    const finalMarkers = [
+        // Marker paling kuat (label "Final" / "Response" / "Polish" / "Applying")
+        '*Final Text Construction:*', 'Final Text Construction:',
+        '*Final Polish:*', 'Final Polish:',
+        '*Final Version:*', 'Final Version:',
+        '*Final Answer:*', 'Final Answer:',
+        '*Final:*', 'Final:',
+        '*Applying Formatting Rules:*', 'Applying Formatting Rules:',
+        '*Applying Bold:*', 'Applying Bold:',
+        '*Response:*', 'Response:',
+    ];
+
+    // Marker lemah (Draft — seringkali ada versi awal DAN versi final, ambil yang terakhir)
+    const draftMarkers = [
+        '*Draft:*', 'Draft:',
+        '*Attempt 2*', '*Attempt 3*',
+        '*Haikaru Persona*',
+    ];
+
+    // Gabungkan, cari dari yang terkuat dulu
+    const allMarkers = [...finalMarkers, ...draftMarkers];
+
+    for (const marker of allMarkers) {
+        const idx = text.lastIndexOf(marker);
+        if (idx !== -1) {
+            let extracted = text.substring(idx + marker.length).trim();
+
+            // Bersihkan: Buang baris-baris yang masih berbau checklist di bawahnya
+            const cleanedLines = [];
+            let hitCleanContent = false;
+            for (const line of extracted.split('\n')) {
+                const t = line.trim();
+
+                // Skip baris checklist/verification di akhir
+                if (hitCleanContent && isChecklistLine(t)) continue;
+
+                // Skip baris kosong di awal sebelum konten mulai
+                if (!hitCleanContent && t.length === 0) continue;
+
+                // Baris pertama yang bukan checklist = mulai konten jawaban
+                if (!hitCleanContent && !isChecklistLine(t)) {
+                    hitCleanContent = true;
+                }
+
+                if (hitCleanContent) {
+                    cleanedLines.push(line);
+                }
+            }
+
+            // Trim trailing checklist lines
+            while (cleanedLines.length > 0 && isChecklistLine(cleanedLines[cleanedLines.length - 1].trim())) {
+                cleanedLines.pop();
+            }
+
+            extracted = cleanedLines.join('\n').trim();
+
+            // Buang prefix asterisk jika seluruh teks dimulai dgn satu bullet
+            if (/^\*\s+/.test(extracted) && extracted.split('\n').length <= 2) {
+                extracted = extracted.replace(/^\*\s+/, '').trim();
+            }
+
+            if (extracted.length > 5) return extracted;
+        }
+    }
+
+    // === Strategi B: Cari blok teks non-bullet terakhir ===
+    const lines = text.split('\n');
+    const reversedLines = [...lines].reverse();
+
+    // Dari bawah, cari baris pertama yang bukan bullet/checklist dan bukan kosong
+    let resultLines = [];
+    let collecting = false;
+
+    for (const line of reversedLines) {
+        const t = line.trim();
+        if (t.length === 0) {
+            if (collecting) resultLines.unshift(line);
+            continue;
+        }
+        if (isChecklistLine(t) || /^\*\s+\(?[A-Z]/.test(t)) {
+            if (collecting) break; // Sudah selesai mengumpulkan
+            continue; // Masih skipping checklist dari bawah
+        }
+        // Baris normal!
+        collecting = true;
+        resultLines.unshift(line);
+    }
+
+    if (resultLines.length > 0) {
+        const result = resultLines.join('\n').trim();
+        if (result.length > 5) return result;
+    }
+
+    // === Strategi C (Nuclear Fallback): Buang SEMUA baris yang terlihat seperti thinking ===
+    const survivingLines = lines.filter(l => {
+        const t = l.trim();
+        if (t.length === 0) return true;
+        if (/^\*\s+\(?[A-Z][a-zA-Z\s\/-]*\)?:/.test(t)) return false; // *   Label:
+        if (/^\*\s+\*[A-Z]/.test(t)) return false;                     // *   *Bold label*
+        if (/^\(\w+/.test(t)) return false;                             // (Self-correction)
+        if (isChecklistLine(t)) return false;
+        return true;
+    });
+
+    return survivingLines.join('\n').trim();
+}
+
+/**
+ * Deteksi baris yang merupakan checklist verifikasi model
+ * (contoh: "*   Single asterisk for bold? Yes.")
+ */
+function isChecklistLine(line) {
+    const t = line.trim();
+    return (
+        /^\*?\s*\*?\s*(Single asterisk|No double|No `|Tags used|Simple mode|Output Format|Casual|Direct|Emoji|self-correct|check)/i.test(t) ||
+        /\?\s*(Yes|No|Check)\.?\s*$/i.test(t) ||
+        /^\(Self-correction/i.test(t)
+    );
 }
 
 /**

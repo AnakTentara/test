@@ -419,7 +419,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         }
         
         try {
-            const _simpInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
+            const _simpInstruct = `\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nLANGSUNG BALAS PESAN USER. JANGAN menulis analisis, JANGAN menulis bullet point, JANGAN menulis draft, JANGAN menulis checklist. LANGSUNG TULIS JAWABAN CHAT SAJA seperti kamu sedang mengetik di WhatsApp. Tidak perlu memikirkan format, langsung jawab secara natural.`;
             const simpleContextForAI = [
                 { role: "system", content: persona + _simpInstruct }
             ];
