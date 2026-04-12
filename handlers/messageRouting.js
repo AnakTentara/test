@@ -69,8 +69,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     // ==== CONTEXT PREFIX ====
     const nowDate = new Date();
-    const wibOffset = 7 * 60; // +7 GMT
-    const wibTime = new Date(nowDate.getTime() + (wibOffset - nowDate.getTimezoneOffset()) * 60000);
+    const wibTime = new Date(nowDate.getTime() + (7 * 3600 * 1000)); // Sengaja +7 jam dari UTC epoch
     const HH = String(wibTime.getUTCHours()).padStart(2, '0');
     const MM = String(wibTime.getUTCMinutes()).padStart(2, '0');
     const DD = String(wibTime.getUTCDate()).padStart(2, '0');
