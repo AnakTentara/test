@@ -135,6 +135,27 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         textMessage = textMessage.replace(tagRegex, '@Haikaru (tagging you)');
     }
 
+    // COMMAND: /disable & /enable (KHUSUS OWNER)
+    const cmdDisable = getConfig().commands?.disable || '/disable';
+    const cmdEnable = getConfig().commands?.enable || '/enable';
+    
+    if ((textBody === cmdDisable || textBody === cmdEnable) && isFromMe) {
+        if (textBody === cmdDisable) {
+            disabledChats.add(chatId);
+            await sock.sendMessage(chatId, { text: '🔇 AI-Haikaru telah dimatikan di chat ini.' }, { quoted: msg });
+        } else {
+            disabledChats.delete(chatId);
+            await sock.sendMessage(chatId, { text: '🔊 AI-Haikaru telah dihidupkan kembali di chat ini.' }, { quoted: msg });
+        }
+        saveDisabledChats(); // Simpan ke disabled-chats.yml
+        return;
+    }
+
+    // Mencegah log & pembacaan jika grup/chat sedang masuk list Disable
+    if (disabledChats.has(chatId) && textBody !== cmdEnable && textBody !== cmdDisable) {
+        return; 
+    }
+
     const buildPrefix = (text) =>
         `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
         
@@ -178,27 +199,6 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
             });
             return completion.choices[0].message.content.trim();
         } catch { return null; }
-    }
-
-    // COMMAND: /disable & /enable (KHUSUS OWNER)
-    const cmdDisable = getConfig().commands?.disable || '/disable';
-    const cmdEnable = getConfig().commands?.enable || '/enable';
-    
-    if ((textBody === cmdDisable || textBody === cmdEnable) && isFromMe) {
-        if (textBody === cmdDisable) {
-            disabledChats.add(chatId);
-            await sock.sendMessage(chatId, { text: '🔇 AI-Haikaru telah dimatikan di chat ini.' }, { quoted: msg });
-        } else {
-            disabledChats.delete(chatId);
-            await sock.sendMessage(chatId, { text: '🔊 AI-Haikaru telah dihidupkan kembali di chat ini.' }, { quoted: msg });
-        }
-        saveDisabledChats(); // Simpan ke disabled-chats.yml
-        return;
-    }
-
-    // Mencegah AI membaca chat jika grup/chat sedang masuk list Disable
-    if (disabledChats.has(chatId) && textBody !== cmdEnable && textBody !== cmdDisable) {
-        return; 
     }
 
     // COMMAND: /resetmemory (KHUSUS OWNER)
