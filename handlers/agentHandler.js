@@ -453,13 +453,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             ]
         } : { role: 'user', content: textMessage };
 
-        const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
-        
-        if (typeof userMessage.content === 'string') {
-            userMessage.content += strongInstruct;
-        } else if (Array.isArray(userMessage.content)) {
-            userMessage.content.push({ type: 'text', text: strongInstruct });
-        }
+
 
         // ============================================================
         // DEEP THINKING ROUTER UNTUK AGENT (OWNER)
@@ -482,12 +476,21 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 // Mulai animasi berfikir
                 thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
                 
+                // Injeksi spesifik untuk Deep Thinking (COMPLEX)
+                const complexInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.`;
+                const deepUserMessage = JSON.parse(JSON.stringify(userMessage));
+                if (typeof deepUserMessage.content === 'string') {
+                    deepUserMessage.content += complexInstruct;
+                } else if (Array.isArray(deepUserMessage.content)) {
+                    deepUserMessage.content.push({ type: 'text', text: complexInstruct });
+                }
+
                 const deepContext = [
                     {
                         role: 'system',
                         content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                     },
-                    userMessage
+                    deepUserMessage
                 ];
 
                 const TIMEOUT_MS = 15 * 60 * 1000;
@@ -536,7 +539,15 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 });
             }
         } else {
-            // ===== MODE NORMAL AGENT =====
+            // ===== MODE NORMAL AGENT (SIMPLE) =====
+            const simpleInstruct = `\n\n[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo bro! Ada apa nih?</WhatsAppMessage>`;
+            const simpleUserMessage = JSON.parse(JSON.stringify(userMessage));
+            if (typeof simpleUserMessage.content === 'string') {
+                simpleUserMessage.content += simpleInstruct;
+            } else if (Array.isArray(simpleUserMessage.content)) {
+                simpleUserMessage.content.push({ type: 'text', text: simpleInstruct });
+            }
+
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
                 messages: [
@@ -544,7 +555,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                         role: 'system',
                         content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                     },
-                    userMessage
+                    simpleUserMessage
                 ],
                 tools: AGENT_TOOLS,
                 tool_choice: 'auto',

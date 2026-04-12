@@ -305,21 +305,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         contextForAI.push(hHistory.messages[i]);
     }
     
-    // Kirim gambar di message terakhir jika ada
-    const lastMsgHaikaru = hHistory.messages[hHistory.messages.length - 1];
-    contextForAI.push(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj));
 
-    // Injeksi instruksi tegas di pesan terakhir agar model patuh
-    const lastMsg = contextForAI[contextForAI.length - 1];
-    const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
-    
-    if (lastMsg && lastMsg.role === 'user') {
-        if (typeof lastMsg.content === 'string') {
-            lastMsg.content += strongInstruct;
-        } else if (Array.isArray(lastMsg.content)) {
-            lastMsg.content.push({ type: 'text', text: strongInstruct });
-        }
-    }
 
     // ============================================================
     // DEEP THINKING ROUTER
@@ -345,9 +331,25 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             
             // Siapkan context khusus deep thinking
             const deepContextForAI = [
-                { role: "system", content: persona },
-                ...contextForAI.slice(1) // Skip system prompt pertama
+                { role: "system", content: persona }
             ];
+            
+            // Rebuild context array untuk deepContext
+            for (let i = 0; i < hHistory.messages.length - 1; i++) {
+                deepContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
+            }
+            deepContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
+
+            // Injeksi instruksi spesifik COMPLEX
+            const _lastMsg = deepContextForAI[deepContextForAI.length - 1];
+            const _strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.`;
+            if (_lastMsg && _lastMsg.role === 'user') {
+                if (typeof _lastMsg.content === 'string') {
+                     _lastMsg.content += _strongInstruct;
+                } else if (Array.isArray(_lastMsg.content)) {
+                     _lastMsg.content.push({ type: 'text', text: _strongInstruct });
+                }
+            }
 
             const localClient = getLocalClient();
 
@@ -404,10 +406,29 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                 // Fallback: coba pakai 26B biasa
                 console.log('[🧠 DEEP THINK] Fallback ke model biasa...');
                 try {
+                    // Fallback juga harus tetap mematuhi context simple karena dia failed kompleks
+                    const fallbackContext = [
+                        { role: "system", content: persona }
+                    ];
+                    for (let i = 0; i < hHistory.messages.length - 1; i++) {
+                        fallbackContext.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
+                    }
+                    fallbackContext.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
+
+                    const _fbMsg = fallbackContext[fallbackContext.length - 1];
+                    const _fbInstruct = `\n\n[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.`;
+                    if (_fbMsg && _fbMsg.role === 'user') {
+                        if (typeof _fbMsg.content === 'string') {
+                            _fbMsg.content += _fbInstruct;
+                        } else if (Array.isArray(_fbMsg.content)) {
+                            _fbMsg.content.push({ type: 'text', text: _fbInstruct });
+                        }
+                    }
+
                     const localClient = getLocalClient();
                     const fallback = await localClient.chat.completions.create({
                         model: getConfig().models?.haikaru || 'gemma-4-26b-a4b-it',
-                        messages: contextForAI,
+                        messages: fallbackContext,
                         temperature: 0.9,
                         max_tokens: 800,
                     });
@@ -428,10 +449,28 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         await sock.sendPresenceUpdate('composing', chatId);
         
         try {
+            const simpleContextForAI = [
+                { role: "system", content: persona }
+            ];
+            for (let i = 0; i < hHistory.messages.length - 1; i++) {
+                simpleContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
+            }
+            simpleContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
+
+            const _lastMsgSimp = simpleContextForAI[simpleContextForAI.length - 1];
+            const _simpInstruct = `\n\n[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo kawan! Ada apa nih?</WhatsAppMessage>`;
+            if (_lastMsgSimp && _lastMsgSimp.role === 'user') {
+                if (typeof _lastMsgSimp.content === 'string') {
+                     _lastMsgSimp.content += _simpInstruct;
+                } else if (Array.isArray(_lastMsgSimp.content)) {
+                     _lastMsgSimp.content.push({ type: 'text', text: _simpInstruct });
+                }
+            }
+
             const localClient = getLocalClient();
             const completion = await localClient.chat.completions.create({
                 model: getConfig().models?.haikaru || getConfig().models?.default || "gemma-4-26b-a4b-it",
-                messages: contextForAI,
+                messages: simpleContextForAI,
                 temperature: 0.9,
                 max_tokens: 800,
             });
