@@ -3,8 +3,8 @@ const { OpenAI } = require('openai');
 
 // Client utama dengan AI Proxy untuk menghindari 403 pemblokiran Region/IP dari Google
 const openaiShakaru = new OpenAI({
-    baseURL: 'https://ai.aikeigroup.net/v1',
-    apiKey: process.env.AIKEI_API_KEY || 'aduhkaboaw91h9i28hoablkdl09190jelnkaknldwa90hoi2',
+    baseURL: process.env.OPENAI_BASE_URL,
+    apiKey: process.env.OPENAI_API_KEY,
 });
 
 function getLocalClient() {
