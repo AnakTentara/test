@@ -303,8 +303,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
             
             // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
-            // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
-            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING. Topik ini sangat kompleks.\n2. Kamu WAJIB berpikir keras dan memberikan jawaban/penjelasan yang SANGAT DETAIL, KOMPREHENSIF, dan PANJANG. Jangan pelit kata. Uraikan semuanya dengan jelas namun tetap bergaya santai khasmu.\n3. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n4. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
+            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING. Topik ini sangat kompleks.\n2. Kamu WAJIB berpikir keras dan memberikan jawaban/penjelasan yang SANGAT DETAIL, KOMPREHENSIF, dan PANJANG. Tuliskan jawaban panjang yang menuntaskan pertanyaan dengan sempurna. Jangan pelit kata.\n3. WAJIB letakkan proses THINKING/DRAFT awalmu di dalam tag <thought> dan </thought>. (PENTING: Tulis proses thinking secara RINGKAS POINT-POINT SAJA untuk menghemat waktu komputasi).\n4. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
 
             // Siapkan context khusus deep thinking
             const deepContextForAI = [
