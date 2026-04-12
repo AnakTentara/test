@@ -534,12 +534,14 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
         } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
+            const simpleInstruct = `[ATURAN PENTING]\nKamu WAJIB membungkus pesan WA akhirmu menggunakan tag XML <WhatsAppMessage>.\nContoh output yang benar:\n<WhatsAppMessage>Halo juga! Ada apa bro?</WhatsAppMessage>\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
                 messages: [
                     {
                         role: 'system',
-                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                        content: `${simpleInstruct}${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                     },
                     userMessage
                 ],
