@@ -3,6 +3,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const { getLocalClient } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories } = require('./dbHandler');
+const { setActiveVoice } = require('./voiceHandler');
 
 // ===== OWNER CONFIG =====
 const OWNER_NUMBERS = [
@@ -276,6 +277,20 @@ const AGENT_TOOLS = [
                 required: ["lid", "phone"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "change_voice",
+            description: "Ubah suara AI ke ID spesifik dari NOIZ saat user minta ganti suara. Pilihan ID (NOIZ MALE): '883b6b7c' (The Mentor/CEO Dingin), 'ac09aeb4' (Pemuda Host/Magnetik), '3b9f1e27' (Pemuda Tech/Ceram), 'a845c7de' (Bule Audiobook), '87cb2405' (Bapak2 Edukasi), '578b4be2' (Jepang Marah/Game), 'f00e45a1' (Jepang Kalem). Pilih ID yang paling cocok dengan request.",
+            parameters: {
+                type: "object",
+                properties: {
+                    voice_id: { type: "string", description: "ID Suara NOIZ yang dipilih" }
+                },
+                required: ["voice_id"]
+            }
+        }
     }
 ];
 
@@ -378,6 +393,11 @@ async function executeTool(toolName, args, chatId) {
             contactsMap[lid] = phone;
             saveContacts();
             return `✅ Kontak terdaftar! *${lid}* → *${phone}*`;
+        }
+
+        case 'change_voice': {
+            setActiveVoice(args.voice_id);
+            return `✅ Suara berhasil diubah ke ID: *${args.voice_id}*`;
         }
 
         default:

@@ -1,4 +1,3 @@
-const { EdgeTTS } = require('node-edge-tts');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -8,11 +7,27 @@ const ffmpegPath = require('ffmpeg-static');
 // Set ffmpeg binary dari ffmpeg-static
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// Suara tersedia:
-// id-ID-ArdiNeural = Cowok berat/tegas (CEO/Mafia)
-// id-ID-GadisNeural = TIDAK ADA (ini bukan nama resmi Edge TTS)
-// Suara wanita resmi: id-ID-ArdiNeural (pria), gunakan en-US-AnaNeural untuk cewek
-const SHAKARU_VOICE = 'id-ID-ArdiNeural';
+const NOIZ_API_KEY = process.env.NOIZ_API_KEY;
+const VOICE_CONFIG_FILE = path.join(__dirname, '..', 'config', 'active-voice.txt');
+
+// Default Voice: The Mentor (Kai)
+let currentVoiceId = '883b6b7c';
+
+function loadActiveVoice() {
+    try {
+        if (fs.existsSync(VOICE_CONFIG_FILE)) {
+            currentVoiceId = fs.readFileSync(VOICE_CONFIG_FILE, 'utf8').trim();
+        }
+    } catch {}
+}
+loadActiveVoice();
+
+function setActiveVoice(voiceId) {
+    currentVoiceId = voiceId;
+    try {
+        fs.writeFileSync(VOICE_CONFIG_FILE, voiceId);
+    } catch {}
+}
 
 /**
  * Convert MP3 buffer ke OGG/OPUS buffer untuk WhatsApp PTT
@@ -46,31 +61,44 @@ function convertMp3ToOgg(mp3Buffer) {
 }
 
 /**
- * Generate voice note sebagai OGG/OPUS buffer (siap kirim ke WA)
+ * Generate voice note dari NOIZ AI lalu konversi ke OGG/OPUS
  */
-async function generateVoice(text, voice = SHAKARU_VOICE) {
-    const tts = new EdgeTTS({
-        voice: voice,
-        lang: 'id-ID',
-        pitch: voice === SHAKARU_VOICE ? '-5Hz' : 'default',
-        rate: voice === SHAKARU_VOICE ? '-5%' : 'default',
+async function generateVoice(text, voiceIdOvr = null) {
+    const voiceId = voiceIdOvr || currentVoiceId;
+
+    if (!NOIZ_API_KEY) {
+        throw new Error("NOIZ_API_KEY belum di-set di file .env");
+    }
+
+    const fd = new FormData();
+    fd.append('text', text);
+    fd.append('voice_id', voiceId);
+    fd.append('output_format', 'mp3');
+    fd.append('target_lang', 'en'); // pake english biar support suara asing tp logat indo
+    fd.append('speed', '1.0');
+
+    console.log(`[🎤 NOIZ] Generating TTS... (Voice: ${voiceId})`);
+
+    const res = await fetch('https://api.noiz.ai/v1/text-to-speech', {
+        method: 'POST',
+        headers: {
+            'Authorization': NOIZ_API_KEY
+        },
+        body: fd
     });
 
-    const tempMp3Path = path.join(__dirname, '..', `tts_${crypto.randomBytes(4).toString('hex')}.mp3`);
-
-    try {
-        // Step 1: Generate MP3 dari Edge TTS
-        await tts.ttsPromise(text, tempMp3Path);
-        const mp3Buffer = fs.readFileSync(tempMp3Path);
-        try { fs.unlinkSync(tempMp3Path); } catch {}
-
-        // Step 2: Convert MP3 → OGG/OPUS
-        const oggBuffer = await convertMp3ToOgg(mp3Buffer);
-        return oggBuffer;
-    } catch (error) {
-        try { fs.unlinkSync(tempMp3Path); } catch {}
-        throw error;
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`NOIZ API Error (${res.status}): ${err}`);
     }
+
+    const buf = await res.arrayBuffer();
+    const mp3Buffer = Buffer.from(buf);
+
+    // Convert MP3 → OGG/OPUS
+    console.log(`[🎤 NOIZ] Converting to OPUS OGG...`);
+    const oggBuffer = await convertMp3ToOgg(mp3Buffer);
+    return oggBuffer;
 }
 
 /**
@@ -97,5 +125,6 @@ module.exports = {
     generateVoice,
     hasPhysicalAction,
     isNaturalVNRequest,
-    SHAKARU_VOICE
+    setActiveVoice,
+    getCurrentVoice: () => currentVoiceId
 };
