@@ -14,15 +14,11 @@ async function classifyComplexity(textMessage) {
             messages: [
                 {
                     role: 'system',
-                    content: `Kamu adalah classifier pertanyaan. Tugasmu HANYA menentukan apakah pesan user membutuhkan analisis mendalam atau tidak.
+                    content: `Kamu adalah classifier pertanyaan. Jawab HANYA dengan satu kata: SIMPLE atau COMPLEX.
+DILARANG keras memberikan penjelasan, preamble, atau reasoning. Cukup satu kata saja!
 
-Jawab HANYA dengan satu kata: SIMPLE atau COMPLEX.
-
-SIMPLE: sapaan, obrolan santai, pertanyaan singkat, gossip, curhat, lelucon, minta rekomendasi sederhana.
-COMPLEX: pertanyaan teknis/coding, analisis data, penjelasan konsep ilmiah, matematika, debugging, perbandingan mendalam, essay, soal ujian, pertanyaan yang butuh reasoning panjang.
-
-Contoh SIMPLE: "halo", "apa kabar", "kamu siapa", "rekomendasiin lagu dong", "lucu banget :v"
-Contoh COMPLEX: "jelaskan cara kerja transformer neural network", "buatkan kode python sorting", "analisis perbedaan TCP dan UDP", "kenapa langit berwarna biru secara fisika"`
+SIMPLE: sapaan, obrolan santai, pertanyaan singkat, curhat, lelucon.
+COMPLEX: pertanyaan teknis/coding, analisis data, konsep ilmiah, matematika, debugging.`
                 },
                 { role: 'user', content: textMessage }
             ],

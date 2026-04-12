@@ -27,28 +27,28 @@ function scrubThoughts(text) {
     // Prioritas 4: Jika Model masih membandel pakai bullet point CoT tanpa tag XML
     const lines = cleaned.split('\n');
     const nonEmptyLines = lines.filter(l => l.trim().length > 0);
-    // Deteksi baris yang diawali dengan asterisk
+    // Deteksi baris yang diawali dengan asterisk (bullet point)
     const thinkingLines = nonEmptyLines.filter(l => /^\s*\*/.test(l));
 
-    const isThinkingResponse = thinkingLines.length > 3 && (thinkingLines.length / nonEmptyLines.length) > 0.3;
+    // Jika lebih dari 30% baris adalah bullet point, kemungkinan ini adalah CoT bocor
+    const isThinkingResponse = thinkingLines.length > 2 && (thinkingLines.length / nonEmptyLines.length) > 0.3;
 
     if (isThinkingResponse) {
-        // Coba ektrak dari marker penutup pikiran (Gemma style)
+        // Daftar marker penutup pikiran (Gemma/Gemma-4 style)
         const textMarkers = [
             '*Response:*', 'Response:',
             '*Final Polish:*', 'Final Polish:',
             '*Final Version:*', 'Final Version:', 
             '*Draft:*', 'Draft:',
+            '*Final Answer:*', 'Final Answer:'
         ];
 
         let extracted = null;
-        // Cari marker dari paling tegas hingga terlemah
         for (const marker of textMarkers) {
             const idx = cleaned.lastIndexOf(marker);
             if (idx !== -1) {
-                // Ambil sisa teks setelah marker
                 extracted = cleaned.substring(idx + marker.length).trim();
-                // Buang jika ada bullet point ekstra yang ikut ke ekstrak
+                // Buang jika ada bullet point asterisk sisa di awal baris hasil ekstrak
                 extracted = extracted.replace(/^\s*\*\s*/gim, '');
                 break;
             }
@@ -57,16 +57,23 @@ function scrubThoughts(text) {
         if (extracted && extracted.length > 5) {
             cleaned = extracted;
         } else {
-            // Coba cari kutipan text
-            const quoteMatch = cleaned.match(/"([^"]+)"\s*(?:\n|$)/);
-            if (quoteMatch && quoteMatch[1] && quoteMatch[1].length > 10) {
-                cleaned = quoteMatch[1];
+            // Coba cari baris terakhir yang BUKAN dimulai dengan asterisk (seringkali ini jawaban aslinya)
+            const reverseLines = [...lines].reverse();
+            const lastNormalLineIdx = reverseLines.findIndex(l => l.trim().length > 0 && !/^\s*\*/.test(l));
+            
+            if (lastNormalLineIdx !== -1) {
+                 // Ambil kumpulan baris normal dari bawah sampai ketemu block asterisk lagi
+                 let resultLines = [];
+                 for(let i=lastNormalLineIdx; i<reverseLines.length; i++) {
+                     if (/^\s*\*/.test(reverseLines[i])) break;
+                     resultLines.unshift(reverseLines[i]);
+                 }
+                 if (resultLines.length > 0) cleaned = resultLines.join('\n').trim();
             } else {
-                // Hapus baris yang terindikasi label pemikiran (misal: * Context: atau *(Self-correction:) -- Agresif
-                const newLines = cleaned.split('\n').filter(l => !/^\s*\*\s*\(?[A-Z][A-Za-z\s-]*\)?\s*:/.test(l));
-                if (newLines.length > 0) {
-                    cleaned = newLines.join('\n');
-                }
+                 // Fallback terakhir: buang semua baris yang terindikasi label pemikiran
+                 cleaned = cleaned.split('\n')
+                    .filter(l => !/^\s*\*\s*\(?[A-Z][A-Za-z\s-]*\)?\s*:/.test(l))
+                    .join('\n').trim();
             }
         }
     }

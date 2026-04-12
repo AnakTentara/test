@@ -329,12 +329,12 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             // Mulai animasi berfikir
             thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
             
-            // Injeksi instruksi spesifik COMPLEX sebagai preamble terpisah di depan
-            const _strongInstruct = `[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+            // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
+            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode DEEP THINKING. Silakan tuliskan pemikiran internalmu.\nNAMUN, Pesan WhatsApp final yang akan dikirim ke user WAJIB kamu bungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>\n\nJANGAN BERHENTI SEBELUM MENGELUARKAN TAG TERSEBUT.`;
 
             // Siapkan context khusus deep thinking
             const deepContextForAI = [
-                { role: "system", content: _strongInstruct + persona }
+                { role: "system", content: persona + _complexInstruct }
             ];
             
             // Rebuild context array untuk deepContext
@@ -441,9 +441,9 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         await sock.sendPresenceUpdate('composing', chatId);
         
         try {
-            const _simpInstruct = `[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo kawan! Ada apa nih?</WhatsAppMessage>\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+            const _simpInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode SIMPLE. Segera berikan jawabanmu tanpa proses berpikir panjang.\nJawaban tersebut WAJIB dibungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
             const simpleContextForAI = [
-                { role: "system", content: _simpInstruct + persona }
+                { role: "system", content: persona + _simpInstruct }
             ];
             for (let i = 0; i < hHistory.messages.length - 1; i++) {
                 simpleContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));

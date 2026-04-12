@@ -477,12 +477,12 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
                 
                 // Injeksi spesifik untuk Deep Thinking (COMPLEX)
-                const complexInstruct = `[SYSTEM DIRECTIVE]\nYou are in DEEP THINKING Mode.\nYou MUST output your final WhatsApp response inside a <WhatsAppMessage> XML block!\nExample:\n<WhatsAppMessage>Tentu bos, ini jawabannya!</WhatsAppMessage>\n\nYou may write your internal thoughts before the XML tag, but YOU MUST INCLUDE THE XML TAG IN THIS RESPONSE. DO NOT STOP GENERATING UNTIL YOU OUTPUT THE <WhatsAppMessage>.\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode DEEP THINKING. Tuliskan proses berpikirmu secara bebas.\nNAMUN, Pesan WhatsApp final yang akan dikirim ke user WAJIB kamu bungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>\n\nJANGAN BERHENTI SEBELUM MENGELUARKAN TAG TERSEBUT.`;
 
                 const deepContext = [
                     {
                         role: 'system',
-                        content: `${complexInstruct}${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.${complexInstruct}`
                     },
                     userMessage
                 ];
@@ -532,16 +532,15 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                     max_tokens: 500
                 });
             }
-        } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
-            const simpleInstruct = `[ATURAN PENTING]\nTuliskan dulu draft/pemikiranmu sebebasnya (jika perlu). Jika sudah menemukan balasan paling pas, WAJIB tuliskan kata "=== FINAL ANSWER ===" dan taruh jawaban akhirmu persis di bawahnya.\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+            const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode SIMPLE. Segera berikan jawabanmu tanpa proses berpikir panjang.\nJawaban tersebut WAJIB dibungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
 
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
                 messages: [
                     {
                         role: 'system',
-                        content: `${simpleInstruct}${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.${simpleInstruct}`
                     },
                     userMessage
                 ],
