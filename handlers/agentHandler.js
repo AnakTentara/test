@@ -416,7 +416,10 @@ async function runAgent(sock, chatId, textMessage, msg) {
             messages: [
                 {
                     role: 'system',
-                    content: `Kamu adalah Sistem Agent bot WhatsApp Haikaru. Chat ini menggunakan persona: ${currentSlot}. Tugasmu mengeksekusi perintah dari Owner. Jika bukan perintah konfigurasi, balas sebagai Haikaru biasa.`
+                    content: `Kamu adalah Sistem Agent (SuperAdmin) bot WhatsApp Haikaru. Chat ini dalam persona: ${currentSlot}. 
+TUGAS UTAMAMU ADALAH MENGEKSEKUSI PERINTAH OWNER MENGGUNAKAN TOOLS YANG TERSEDIA!
+Jika Owner meminta atau mengomentari untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS (KARENA SISTEM TTS SUDAH ADA DI BACKEND).
+Jika bukan perintah sistem/konfigurasi, balas obrolan biasa.`
                 },
                 { role: 'user', content: textMessage }
             ],
@@ -432,12 +435,13 @@ async function runAgent(sock, chatId, textMessage, msg) {
             for (const tc of response.tool_calls) {
                 const toolName = tc.function.name;
                 const toolArgs = JSON.parse(tc.function.arguments);
-                console.log(`\n[🤖 AGENT] Eksekusi tool: ${toolName}`, toolArgs);
+                console.log(`\n[🤖 AGENT] Mengeksekusi tool: ${toolName}`, toolArgs);
                 const result = await executeTool(toolName, toolArgs, chatId);
                 await sock.sendMessage(chatId, { text: result }, { quoted: msg });
             }
         } else {
             const reply = response.content || 'Ada yang bisa gue bantu?';
+            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${reply.substring(0,50)}...`);
             await sock.sendMessage(chatId, { text: reply }, { quoted: msg });
         }
     } catch (err) {
