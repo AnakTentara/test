@@ -477,10 +477,19 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 const deepContext = [
                     {
                         role: 'system',
-                        content: `<|think|>\n${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
+                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                     },
-                    userMessage
+                    JSON.parse(JSON.stringify(userMessage)) // Deep copy
                 ];
+
+                const lastMsg = deepContext[deepContext.length - 1];
+                const strongInstruct = `\n\n[SISTEM]: Ingat, kamu WAJIB memikirkan jawabanmu secara mendalam terlebih dahulu (gunakan bullet points atau <thought>). Setelah pemikiran selesai, kamu WAJIB menuliskan kata "=== FINAL ANSWER ===" di baris baru, diikuti dengan jawaban yang akan dikirim ke user!`;
+                
+                if (typeof lastMsg.content === 'string') {
+                    lastMsg.content += strongInstruct;
+                } else if (Array.isArray(lastMsg.content)) {
+                    lastMsg.content.push({ type: 'text', text: strongInstruct });
+                }
 
                 const TIMEOUT_MS = 15 * 60 * 1000;
                 const aiPromise = client.chat.completions.create({

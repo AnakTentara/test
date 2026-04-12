@@ -332,11 +332,22 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
             
             // Siapkan context khusus deep thinking
-            // Prefix <|think|> di system prompt agar Gemma 31B masuk mode reasoning
             const deepContextForAI = [
-                { role: "system", content: `<|think|>\n${persona}` },
-                ...contextForAI.slice(1) // Skip system prompt pertama (sudah diganti di atas)
+                { role: "system", content: persona },
+                ...contextForAI.slice(1) // Skip system prompt pertama
             ];
+
+            // Injeksi instruksi tegas di pesan terakhir agar model patuh
+            const lastMsg = deepContextForAI[deepContextForAI.length - 1];
+            const strongInstruct = `\n\n[SISTEM]: Ingat, kamu WAJIB memikirkan jawabanmu secara mendalam terlebih dahulu (gunakan bullet points atau <thought>). Setelah pemikiran selesai, kamu WAJIB menuliskan kata "=== FINAL ANSWER ===" di baris baru, diikuti dengan jawaban yang akan dikirim ke user!`;
+            
+            if (lastMsg && lastMsg.role === 'user') {
+                if (typeof lastMsg.content === 'string') {
+                    lastMsg.content += strongInstruct;
+                } else if (Array.isArray(lastMsg.content)) {
+                    lastMsg.content.push({ type: 'text', text: strongInstruct });
+                }
+            }
 
             const localClient = getLocalClient();
 

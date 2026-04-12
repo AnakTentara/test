@@ -30,9 +30,15 @@ Contoh COMPLEX: "jelaskan cara kerja transformer neural network", "buatkan kode 
             max_tokens: 10,
         });
 
-        const result = (completion.choices[0].message.content || '').trim().toUpperCase();
-        console.log(`[🧠 CLASSIFIER] "${textMessage.substring(0, 40)}..." → ${result}`);
-        return result.includes('COMPLEX');
+        const result = (completion.choices[0].message.content || '').toUpperCase();
+        console.log(`[🧠 CLASSIFIER RAW] ${result.replace(/\n/g, ' ')}`);
+        
+        // Ekstrak kata SIMPLE atau COMPLEX yang paling terakhir muncul
+        const matches = result.match(/(SIMPLE|COMPLEX)/g);
+        const verdict = matches ? matches[matches.length - 1] : 'SIMPLE';
+        
+        console.log(`[🧠 CLASSIFIER] "${textMessage.substring(0, 40)}..." → ${verdict}`);
+        return verdict === 'COMPLEX';
     } catch (err) {
         console.error('[🧠 CLASSIFIER ERROR]', err.message);
         return false; // Default ke SIMPLE jika classifier gagal
