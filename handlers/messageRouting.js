@@ -41,9 +41,6 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     if (!textMessage && !imageObj) return;
 
     const textBody = textMessage.trim();
-    // Beri sedikit log sebelum diproses agar tidak "kosong" informasinya
-    console.log(`[📩 INBOX] Pesan dari ${pushName}: ${textBody.length > 50 ? textBody.substring(0, 50) + '...' : textBody}`);
-    
     const isGroup = chatId.endsWith('@g.us');
 
     // ==== CONTEXT PREFIX ====
@@ -107,6 +104,12 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     const buildPrefix = (text) =>
         `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
+        
+    const prefixMessage = buildPrefix(textMessage);
+    
+    // Log pesan PERSIS seperti yang dilihat AI
+    const apiLogMessage = prefixMessage.length > 200 ? prefixMessage.substring(0, 200) + '...' : prefixMessage;
+    console.log(`\n[📩 INBOX API] ${apiLogMessage}`);
 
     // === FILESYSTEM NAME GENERATOR ===
     // Untuk menghasilkan memory terpisah per-chat
@@ -275,9 +278,6 @@ ${helpText}` : helpText;
     */
 
     // =============== ROUTING LOGIC ===============
-    
-    // Siapkan prefix yang memuat info kontak
-    const prefixMessage = buildPrefix(textMessage);
 
     // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
@@ -289,7 +289,7 @@ ${helpText}` : helpText;
         
         // Pengecekan Grup: Haikaru/Agent HANYA muncul jika di tag atau di-reply!
         if (isGroup) {
-            const botNumber = sock.user.id.split(':')[0];
+            const botNumber = sock.user.id.split(':')[0].split('@')[0];
             const botJid = botNumber + '@s.whatsapp.net';
             
             const contextInfo = msg.message?.extendedTextMessage?.contextInfo 
