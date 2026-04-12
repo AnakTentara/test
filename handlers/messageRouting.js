@@ -307,8 +307,8 @@ ${helpText}` : helpText;
             
             const isReplied = contextInfo.participant === botJid && aiSentMessageIds.has(contextInfo.stanzaId);
 
-            console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botLid:${botLid} | RawMentions:`, contextInfo.mentionedJid);
-            console.log(`  -> MetaPN:${isMentionedMeta} | TextPN:${isMentionedText} | MetaLID:${isLidMentionedMeta} | TextLID:${isLidMentionedText} | Replied:${isReplied}`);
+            // console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botLid:${botLid} | RawMentions:`, contextInfo.mentionedJid);
+            // console.log(`  -> MetaPN:${isMentionedMeta} | TextPN:${isMentionedText} | MetaLID:${isLidMentionedMeta} | TextLID:${isLidMentionedText} | Replied:${isReplied}`);
 
             if (!isMentionedMeta && !isMentionedText && !isLidMentionedMeta && !isLidMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
