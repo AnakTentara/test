@@ -246,15 +246,19 @@ ${helpText}` : helpText;
     }
 
     // =============== ROUTING LOGIC ===============
+    
+    // Siapkan prefix yang memuat info kontak
+    const prefixMessage = buildPrefix(textMessage);
+
     // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
         incrementReply();
         await processShakaruChat(sock, chatId, textMessage, imageObj, msg);
     } 
     // Jika Owner chat -> Cek apakah ada perintah Agent
-    else if (!activeChats.has(chatId) && isOwner(chatId) && !isFromMe) {
+    else if (!activeChats.has(chatId) && isOwner(prefixMessage) && !isFromMe) {
         incrementReply();
-        await runAgent(sock, chatId, buildPrefix(textMessage), msg);
+        await runAgent(sock, chatId, prefixMessage, msg);
     }
     // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
     else if (!activeChats.has(chatId) && !isFromMe) {

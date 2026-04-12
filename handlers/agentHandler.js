@@ -446,8 +446,11 @@ async function runAgent(sock, chatId, textMessage, msg) {
     }
 }
 
-function isOwner(chatId) {
-    return OWNER_NUMBERS.some(num => chatId.includes(num));
+function isOwner(identifier) {
+    return OWNER_NUMBERS.some(num => {
+        const localNum = '0' + num.slice(2);
+        return identifier.includes(num) || identifier.includes(localNum);
+    });
 }
 
 module.exports = {
