@@ -8,11 +8,24 @@ function scrubThoughts(text) {
     if (!text) return text;
     let cleaned = text;
 
-    // Prioritas 1: Coba ekstrak wajib dari <WhatsAppMessage> (Ambil yang paling terakhir untuk menghindari instruksi di atasnya)
-    const xmlMatches = [...cleaned.matchAll(/<WhatsAppMessage>([\s\S]*?)<\/WhatsAppMessage>/gi)];
-    if (xmlMatches.length > 0) {
-        const lastMatch = xmlMatches[xmlMatches.length - 1];
-        return cleanWhatsAppFormat(lastMatch[1].trim());
+    // Prioritas 1: Ekstraksi Blok <WhatsAppMessage> yang paling akhir (paling andal)
+    const startTag = '<WhatsAppMessage>';
+    const endTag = '</WhatsAppMessage>';
+    const lastStartIdx = cleaned.lastIndexOf(startTag);
+    const lastEndIdx = cleaned.lastIndexOf(endTag);
+
+    if (lastStartIdx !== -1) {
+        let extracted = '';
+        if (lastEndIdx !== -1 && lastEndIdx > lastStartIdx) {
+            // Kasus normal: ada pasangan tag lengkap
+            extracted = cleaned.substring(lastStartIdx + startTag.length, lastEndIdx).trim();
+        } else {
+            // Kasus toleran: tag penutup hilang atau terpotong, ambil sisa pesan
+            extracted = cleaned.substring(lastStartIdx + startTag.length).trim();
+        }
+        // Bersihkan jika ada sisa-sisa backtick atau tag penutup yang rusak di ujung
+        extracted = extracted.replace(/<\/WhatsAppMessage>?/gi, '').replace(/```+$/g, '').replace(/`+$/g, '').trim();
+        if (extracted.length > 0) return cleanWhatsAppFormat(extracted);
     }
 
     // Prioritas 2: Pemisah Final Answer 
