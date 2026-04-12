@@ -6,7 +6,7 @@ const { SYSTEM_PROMPT } = require('./persona');
 const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
-const { scrubThoughts } = require('./utils');
+const { scrubThoughts, sendLongMessage } = require('./utils');
 const { getConfig } = require('./configManager');
 const { classifyComplexity, startThinkingAnimation } = require('./thinkingRouter');
 
@@ -16,34 +16,7 @@ function setSockSaran(sock) {
     sockSaranGlobal = sock;
 }
 
-// Fitur untuk mengirim pesan panjang berpotong-potong
-async function sendLongMessage(sock, chatId, text, quotedMsg) {
-    const maxLength = 3000;
-    if (text.length <= maxLength) {
-        const sent = await sock.sendMessage(chatId, { text }, { quoted: quotedMsg });
-        if (sent?.key?.id) addAiSentMessage(sent.key.id);
-        return;
-    }
 
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    let currentChunk = "";
-
-    for (const sentence of sentences) {
-        if ((currentChunk.length + sentence.length) > maxLength) {
-            const sent1 = await sock.sendMessage(chatId, { text: currentChunk.trim() });
-            if (sent1?.key?.id) addAiSentMessage(sent1.key.id);
-            await new Promise(resolve => setTimeout(resolve, 800));
-            currentChunk = sentence;
-        } else {
-            currentChunk += " " + sentence;
-        }
-    }
-    
-    if (currentChunk.trim()) {
-        const sent2 = await sock.sendMessage(chatId, { text: currentChunk.trim() });
-        if (sent2?.key?.id) addAiSentMessage(sent2.key.id);
-    }
-}
 
 /**
  * Summarize history Shakaru jika melebihi panjang 50
@@ -331,7 +304,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             
             // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
             // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
-            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING.\n2. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n3. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nUser menyapa. Aku harus membalas santai.\n</thought>\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>`;
+            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING. Topik ini sangat kompleks.\n2. Kamu WAJIB berpikir keras dan memberikan jawaban/penjelasan yang SANGAT DETAIL, KOMPREHENSIF, dan PANJANG. Jangan pelit kata. Uraikan semuanya dengan jelas namun tetap bergaya santai khasmu.\n3. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n4. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
 
             // Siapkan context khusus deep thinking
             const deepContextForAI = [

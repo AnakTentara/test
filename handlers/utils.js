@@ -114,4 +114,74 @@ function cleanWhatsAppFormat(text) {
     return cleaned.trim();
 }
 
-module.exports = { scrubThoughts };
+// Fitur untuk mengirim pesan panjang berpotong-potong (Smart Splitter untuk Limit WA 1160 chars)
+async function sendLongMessage(sock, chatId, text, quotedMsg) {
+    const { addAiSentMessage } = require('./dbHandler');
+    const maxLength = 1160;
+
+    if (text.length <= maxLength) {
+        const sent = await sock.sendMessage(chatId, { text }, quotedMsg ? { quoted: quotedMsg } : undefined);
+        if (sent?.key?.id) addAiSentMessage(sent.key.id);
+        return [sent];
+    }
+
+    const paragraphs = text.split(/\n\n+/);
+    const chunks = [];
+    let currentChunk = "";
+
+    for (let i = 0; i < paragraphs.length; i++) {
+        const para = paragraphs[i];
+        
+        if (currentChunk.length + para.length + 2 <= maxLength) {
+            currentChunk += (currentChunk.length > 0 ? '\n\n' : '') + para;
+        } else {
+            // Jika chunk sudah ada isinya, simpan dulu
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk);
+                currentChunk = "";
+            }
+            
+            // Jika SATU paragraf ini saja sudah lebih panjang dari limit
+            if (para.length > maxLength) {
+                let remainingPara = para;
+                while (remainingPara.length > 0) {
+                    if (remainingPara.length <= maxLength) {
+                        currentChunk = remainingPara;
+                        break;
+                    }
+                    
+                    // Coba potong di batas spasi terdekat (max mundur 30%)
+                    let splitAt = remainingPara.lastIndexOf(' ', maxLength);
+                    if (splitAt === -1 || splitAt < maxLength * 0.7) {
+                        splitAt = maxLength; // Paksa potong jika ga ketemu spasi rasional
+                    }
+                    
+                    chunks.push(remainingPara.substring(0, splitAt).trim());
+                    remainingPara = remainingPara.substring(splitAt).trim();
+                }
+            } else {
+                currentChunk = para;
+            }
+        }
+    }
+    
+    // Sisa chunk terakhir
+    if (currentChunk.trim().length > 0) {
+        chunks.push(currentChunk.trim());
+    }
+
+    const sents = [];
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const isFirst = i === 0;
+        const sent = await sock.sendMessage(chatId, { text: chunk }, isFirst && quotedMsg ? { quoted: quotedMsg } : undefined);
+        if (sent?.key?.id) addAiSentMessage(sent.key.id);
+        sents.push(sent);
+        if (i < chunks.length - 1) {
+            await new Promise(r => setTimeout(r, 600)); // Delay sblm lanjut ngirim pecahan
+        }
+    }
+    return sents;
+}
+
+module.exports = { scrubThoughts, sendLongMessage };

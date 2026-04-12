@@ -4,7 +4,7 @@ const yaml = require('js-yaml');
 const { getLocalClient } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories } = require('./dbHandler');
 const { setActiveVoice } = require('./voiceHandler');
-const { scrubThoughts } = require('./utils');
+const { scrubThoughts, sendLongMessage } = require('./utils');
 const { getConfig, updateModel } = require('./configManager');
 const { classifyComplexity, startThinkingAnimation } = require('./thinkingRouter');
 
@@ -477,7 +477,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
                 
                 // Injeksi spesifik untuk Deep Thinking (COMPLEX)
-                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING.\n2. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n3. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nUser menyapa. Aku harus membalas santai.\n</thought>\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>`;
+                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING. Topik ini lumayan kompleks.\n2. Kamu WAJIB menerangkan secara SANGAT DETAIL, KOMPREHENSIF, dan PANJANG. Tuliskan jawaban panjang yang menuntaskan pertanyaan dengan sempurna. Jangan pelit kata.\n3. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n4. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
 
                 const deepContext = [
                     {
@@ -599,7 +599,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
 
             console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${answer.substring(0, 50).replace(/\n/g, ' ')}...`);
-            await sock.sendMessage(chatId, { text: answer }, { quoted: msg });
+            await sendLongMessage(sock, chatId, answer, msg);
         }
     } catch (err) {
         console.error('[🤖 AGENT ERROR]', err.message);
