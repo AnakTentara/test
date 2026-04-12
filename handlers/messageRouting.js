@@ -225,6 +225,7 @@ ${helpText}` : helpText;
         return;
     }
 
+    /* DI-DISABLE SEMENTARA (REQUEST USER)
     // COMMAND: .vn [teks] — Toleran terhadap spasi misal ". vn halo"
     const normalizedBody = textBody.replace(/^\. +/, '.').replace(/\s+/g, ' ');
     if (normalizedBody.toLowerCase().startsWith('.vn ')) {
@@ -247,6 +248,7 @@ ${helpText}` : helpText;
         }
         return;
     }
+    */
 
     // =============== ROUTING LOGIC ===============
     
@@ -286,6 +288,7 @@ ${helpText}` : helpText;
             }).catch(()=>{});
         }
 
+        /* DI-DISABLE SEMENTARA (REQUEST USER)
         // 2. Cek apakah ini request VN secara natural language
         if (textMessage && isNaturalVNRequest(textMessage)) {
             try {
@@ -303,6 +306,7 @@ ${helpText}` : helpText;
                 console.error('[🎤 VOICE NOTE] NL VN gagal:', e.message);
             }
         }
+        */
 
         // 3. Jika bukan VN Request, baru cek apakah ini Owner (Sistem Agent)
         if (isOwner(prefixMessage)) {
