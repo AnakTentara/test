@@ -330,7 +330,8 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
             
             // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
-            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode DEEP THINKING. Silakan tuliskan pemikiran internalmu.\nNAMUN, Pesan WhatsApp final yang akan dikirim ke user WAJIB kamu bungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>\n\nJANGAN BERHENTI SEBELUM MENGELUARKAN TAG TERSEBUT.`;
+            // Injeksi instruksi spesifik COMPLEX sebagai suffix di akhir system prompt
+            const _complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING.\n2. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n3. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nUser menyapa. Aku harus membalas santai.\n</thought>\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>`;
 
             // Siapkan context khusus deep thinking
             const deepContextForAI = [
@@ -408,7 +409,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                     fallbackContext.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
                     const _fbMsg = fallbackContext[fallbackContext.length - 1];
-                    const _fbInstruct = `\n\n[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.`;
+                    const _fbInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
                     if (_fbMsg && _fbMsg.role === 'user') {
                         if (typeof _fbMsg.content === 'string') {
                             _fbMsg.content += _fbInstruct;
@@ -441,7 +442,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         await sock.sendPresenceUpdate('composing', chatId);
         
         try {
-            const _simpInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode SIMPLE. Segera berikan jawabanmu tanpa proses berpikir panjang.\nJawaban tersebut WAJIB dibungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
+            const _simpInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
             const simpleContextForAI = [
                 { role: "system", content: persona + _simpInstruct }
             ];

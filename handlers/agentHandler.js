@@ -477,7 +477,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                 thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
                 
                 // Injeksi spesifik untuk Deep Thinking (COMPLEX)
-                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode DEEP THINKING. Tuliskan proses berpikirmu secara bebas.\nNAMUN, Pesan WhatsApp final yang akan dikirim ke user WAJIB kamu bungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>\n\nJANGAN BERHENTI SEBELUM MENGELUARKAN TAG TERSEBUT.`;
+                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING.\n2. WAJIB letakkan seluruh proses berpikir, analisis, dan draft jawabanmu di dalam tag <thought> dan </thought>.\n3. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nUser menyapa. Aku harus membalas santai.\n</thought>\n<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>`;
 
                 const deepContext = [
                     {
@@ -534,7 +534,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
         } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
-            const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode SIMPLE. Segera berikan jawabanmu tanpa proses berpikir panjang.\nJawaban tersebut WAJIB dibungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
+            const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode SIMPLE.\n2. Jika butuh berpikir singkat, letakkan di dalam tag <thought> dan </thought>.\n3. Setelah itu, WAJIB tuliskan jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>.\nContoh:\n<thought>\nDraft: Halo bro.\n</thought>\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
 
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
