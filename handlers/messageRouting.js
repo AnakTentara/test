@@ -276,7 +276,10 @@ ${helpText}` : helpText;
 
     // =============== ROUTING LOGIC ===============
     
-    // Siapkan prefix yang memuat info    // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
+    // Siapkan prefix yang memuat info kontak
+    const prefixMessage = buildPrefix(textMessage);
+
+    // Jika Chat Aktif Mode RP -> Kirim ke Shakaru
     if (activeChats.has(chatId) && !isFromMe) {
         incrementReply();
         await processShakaruChat(sock, chatId, textMessage, imageObj, msg, memoryFileName);
