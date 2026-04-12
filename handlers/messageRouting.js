@@ -300,7 +300,7 @@ ${helpText}` : helpText;
             
             
             const rawLid = sock.user?.lid || sock.authState?.creds?.me?.lid || '';
-            const botLid = rawLid ? rawLid.split('@')[0] : '';
+            const botLid = rawLid ? rawLid.split(':')[0].split('@')[0] : '';
             const botLidJid = botLid + '@lid';
             const isLidMentionedMeta = contextInfo.mentionedJid?.includes(botLidJid) || false;
             const isLidMentionedText = botLid ? textMessage.includes(`@${botLid}`) : false;
