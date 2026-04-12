@@ -16,8 +16,8 @@ async function classifyComplexity(textMessage) {
                     role: 'system',
                     content: `Classify the user message into one category: SIMPLE or COMPLEX.
 Rules:
-- SIMPLE: Greetings, casual chat, short questions.
-- COMPLEX: Technical, coding, math, deep analysis.
+- COMPLEX: The user EXPLICITLY asks the AI to "think harder", "think deeper", "coba pikirin lagi", "pikirkan lebih keras", "coba analisis lebih dalam", "berpikir lebih keras", or similar phrases demanding a deeper mental effort.
+- SIMPLE: Everything else! Including normal questions, math, coding, physics, casual chat, and greetings. IF the user does NOT explicitly say "think harder/deeper", it is ALWAYS SIMPLE.
 Output ONLY the word SIMPLE or COMPLEX.`
                 },
                 { role: 'user', content: textMessage }
