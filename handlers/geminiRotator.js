@@ -14,16 +14,25 @@ function getLocalClient() {
 /**
  * Fitur Reaksi Emoji Otomatis menggunakan Local API
  */
-async function analyzeEmojiReaction(textMessage) {
+async function analyzeEmojiReaction(textMessage, contextArr = []) {
     try {
         const client = getLocalClient();
+        
+        let messagesContext = [
+            { role: "system", content: "Kamu adalah AI analis sentimen reaktif. Tugasmu BUKAN membalas obrolan, melainkan memberikan HANYA SATU karakter Emoji Unicode asli (contoh: 😂, 😡, 🥺, ❤️, 🔥) yang paling menggambarkan ekspresi yang tepat untuk membalas pesan terakhir user berdasarkan konteks. JIKA TIDAK YAKIN atau biasa saja, JANGAN BERIKAN EMOJI APAPUN (kosongkan). Ingat: HANYA 1 KARAKTER EMOJI atau KOSONG. JANGAN tulis teks huruf." }
+        ];
+
+        // Masukkan history jika ada
+        if (contextArr && contextArr.length > 0) {
+            messagesContext.push(...contextArr);
+        }
+        
+        messagesContext.push({ role: "user", content: textMessage });
+
         const completion = await client.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
-            messages: [
-                { role: "system", content: "Kamu analis sentimen. Berikan HANYA SATU karakter Emoji Unicode asli (bukan kode text) yang paling menggambarkan sentimen pesan user. Kalau tidak ada emoji yang cocok biarkan kosong. Ingat HANYA 1 EMOJI." },
-                { role: "user", content: textMessage }
-            ],
-            temperature: 0.5,
+            model: "gemini-3.1-flash-lite",
+            messages: messagesContext,
+            temperature: 0.3,
             max_tokens: 5
         });
         const resp = completion.choices[0].message.content.trim();

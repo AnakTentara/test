@@ -1,0 +1,357 @@
+[DEBUG] updateKeyStats: GEMINI_API_KEY_16, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_16, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_17, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_17 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_17 (Attempt 35/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_17. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_17, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_17, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_18, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_18 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_18 (Attempt 36/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_18. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_18, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_18, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_19, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_19 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_19 (Attempt 37/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_19. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_19, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_19, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_20, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_20 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_20 (Attempt 38/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_20. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_20, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_20, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_21, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_21 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_21 (Attempt 39/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_21. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_21, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_21, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_22, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_22 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_22 (Attempt 40/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_22. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_22, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_22, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_23, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_23 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_23 (Attempt 41/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_23. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_23, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_23, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_24, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_24 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_24 (Attempt 42/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_24. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_24, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_24, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_25, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_25 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_25 (Attempt 43/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_25. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_25, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_25, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_26, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_26 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_26 (Attempt 44/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_26. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_26, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_26, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_27, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_27 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_27 (Attempt 45/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_27. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_27, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_27, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_28, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_28 (Attempt 46/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_28. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_28, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_28, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_29, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_29 (Attempt 47/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_29. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_29, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_29, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_30, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_30 (Attempt 48/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_30. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_30, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_30, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_31, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_31 (Attempt 49/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_31. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_31, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_31, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_32, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_32 (Attempt 50/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_32. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_32, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_32, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_33, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_33 (Attempt 51/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_33. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_33, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_33, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_34, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_34 (Attempt 52/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_34. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_34, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_34, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_35, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_35 (Attempt 53/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_35. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_35, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_35, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_36, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_36 (Attempt 54/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_36. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_36, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_36, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_37, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_37 (Attempt 55/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_37. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_37, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_37, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_38, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_38 (Attempt 56/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_38. Status: 400
+[DEBUG] Error Details from Google: {"error":{"code":400,"message":"API Key not found. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"API_KEY_INVALID","domain":"googleapis.com","metadata":{"service":"generativelanguage.googleapis.com"}},{"@type":"type.googleapis.com/google.rpc.LocalizedMessage","locale":"en-US","message":"API Key not found. Please pass a valid API key."}]}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_38, model=gemma-4-31b-it, status=400
+[DEBUG] ensureModelStats: GEMINI_API_KEY_38, gemma-4-31b-it
+[ERROR] /v1/chat/completions route error: API Key not found. Please pass a valid API key.
+[ERROR] Request failed using key: GEMINI_API_KEY_daichikei12_1. Status: 500
+[DEBUG] Error Details from Google: timeout of 30000ms exceeded
+[DEBUG] updateKeyStats: GEMINI_API_KEY_daichikei12_1, model=gemma-4-31b-it, status=500
+[DEBUG] ensureModelStats: GEMINI_API_KEY_daichikei12_1, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_39, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_39 (Attempt 12/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_39. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_39, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_39, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_40, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_40 (Attempt 13/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_40. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_40, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_40, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_41, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_41 (Attempt 14/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_41. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_41, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_41, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_42, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_42 (Attempt 15/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_42. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_42, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_42, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_43, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_43 (Attempt 16/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_43. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_43, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_43, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_44, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_44 (Attempt 17/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_44. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_44, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_44, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_45, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_45 (Attempt 18/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_45. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_45, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_45, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_46, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_46 (Attempt 19/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_46. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_46, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_46, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_47, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_47 (Attempt 20/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_47. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_47, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_47, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_48, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_48 (Attempt 21/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_48. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_48, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_48, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_49, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_49 (Attempt 22/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_49. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_49, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_49, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_50, gemma-4-31b-it
+[INFO] Cooldown for key GEMINI_API_KEY_50 (model gemma-4-31b-it) expired, will try again.
+[INFO] Attempting request using key: GEMINI_API_KEY_50 (Attempt 23/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_50. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_50, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_50, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_1, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_1 (Attempt 24/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_1. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_1, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_1, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_2, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_2 (Attempt 25/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_2. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_2, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_2, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_3, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_3 (Attempt 26/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_3. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_3, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_3, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_4, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_4 (Attempt 27/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_4. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_4, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_4, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_5, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_5 (Attempt 28/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_5. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_5, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_5, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_6, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_6 (Attempt 29/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_6. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_6, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_6, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_7, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_7 (Attempt 30/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_7. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_7, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_7, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_8, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_8 (Attempt 31/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_8. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_8, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_8, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_9, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_9 (Attempt 32/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_9. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_9, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_9, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_10, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_10 (Attempt 33/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_10. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_10, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_10, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_11, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_mrifqidaffaaditya10_11 (Attempt 34/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_mrifqidaffaaditya10_11. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_mrifqidaffaaditya10_11, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_mrifqidaffaaditya10_11, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_daichikei12_1, gemma-4-31b-it
+[INFO] Attempting request using key: GEMINI_API_KEY_daichikei12_1 (Attempt 35/65)
+[ERROR] Request failed using key: GEMINI_API_KEY_daichikei12_1. Status: 429
+[DEBUG] Error Details from Google: {"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
+[DEBUG] updateKeyStats: GEMINI_API_KEY_daichikei12_1, model=gemma-4-31b-it, status=429
+[DEBUG] ensureModelStats: GEMINI_API_KEY_daichikei12_1, gemma-4-31b-it
+[DEBUG] ensureModelStats: GEMINI_API_KEY_kipasanginkosmos404_1, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_kipasanginkosmos404_1 for model gemma-4-31b-it is on cooldown for another 52s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_kipasanginkosmos404_2, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_kipasanginkosmos404_2 for model gemma-4-31b-it is on cooldown for another 53s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_araaraonichanhehe_1, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_araaraonichanhehe_1 for model gemma-4-31b-it is on cooldown for another 53s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_araaraonichanhehe_2, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_araaraonichanhehe_2 for model gemma-4-31b-it is on cooldown for another 53s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_2, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_2 for model gemma-4-31b-it is on cooldown for another 53s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_3, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_3 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_4, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_4 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_5, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_5 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_6, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_6 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_7, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_7 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_8, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_8 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_9, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_9 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_10, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_10 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_11, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_11 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_12, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_12 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_13, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_13 for model gemma-4-31b-it is on cooldown for another 54s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_14, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_14 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_15, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_15 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_16, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_16 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_17, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_17 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_18, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_18 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_19, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_19 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_20, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_20 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_21, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_21 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_22, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_22 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_23, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_23 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_24, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_24 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_25, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_25 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_26, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_26 for model gemma-4-31b-it is on cooldown for another 55s and will be skipped.
+[DEBUG] ensureModelStats: GEMINI_API_KEY_27, gemma-4-31b-it
+[WARNING] Key GEMINI_API_KEY_27 for model gemma-4-31b-it is on cooldown for another 56s and will be skipped.
+[FATAL] All Gemini API keys exhausted or rate-limited for model gemma-4-31b-it.
+[ERROR] /v1/chat/completions route error: All Gemini API Keys exhausted or on cooldown for model gemma-4-31b-it

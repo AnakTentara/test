@@ -360,9 +360,18 @@ ${helpText}` : helpText;
         const now = Date.now();
         const lastReact = reactionCooldowns.get(chatId) || 0;
         
+        let pastHistory = [];
+        if (isOwner(chatId)) {
+            const h = haikaruMemories.get(chatId);
+            if (h && h.messages) pastHistory = h.messages.slice(-10);
+        } else {
+            const h = chatMemories.get(chatId);
+            if (h && h.messages) pastHistory = h.messages.slice(-10);
+        }
+        
         if (now - lastReact > 30000 && textMessage) { // Bereaksi hanya kalau ada konteks teks 
             reactionCooldowns.set(chatId, now);
-            analyzeEmojiReaction(textMessage).then(async (emoji) => {
+            analyzeEmojiReaction(textMessage, pastHistory).then(async (emoji) => {
                 if (emoji && (emoji.length > 0 && emoji.length < 10) && !emoji.includes('{')) { 
                     await sock.sendMessage(chatId, { react: { text: emoji, key: msg.key } });
                 }

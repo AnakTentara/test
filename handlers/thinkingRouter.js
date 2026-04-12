@@ -53,49 +53,45 @@ function formatDuration(seconds) {
 }
 
 /**
- * Mulai animasi "Berfikir" di WhatsApp dengan edit pesan setiap detik.
- * @returns {{ stop: Function, getKey: Function }} controller untuk menghentikan animasi
+ * Mulai animasi "Berfikir" di WhatsApp dengan reaksi emoji setiap detik.
+ * @returns {{ stop: Function }} controller untuk menghentikan animasi
  */
 async function startThinkingAnimation(sock, chatId, quotedMsg) {
-    const dots = ['.', '..', '...'];
+    const clockEmojis = ['🕛','🕧','🕐','🕜','🕑','🕝','🕒','🕞','🕓','🕟','🕔','🕠','🕕','🕡','🕖','🕢','🕗','🕣','🕘','🕤','🕙','🕥','🕚','🕦'];
     let elapsed = 0;
 
-    // Kirim pesan awal
-    const sent = await sock.sendMessage(chatId, { text: `⏳ Berfikir. (0s)` }, { quoted: quotedMsg });
-    const messageKey = sent.key;
+    if (!quotedMsg || !quotedMsg.key) {
+        return { stop: () => {}, getElapsed: () => 0 };
+    }
 
     // Nyalakan typing indicator
     await sock.sendPresenceUpdate('composing', chatId);
 
-    // Interval: edit pesan setiap detik
+    // Reaksi awal
+    await sock.sendMessage(chatId, { react: { text: clockEmojis[0], key: quotedMsg.key } }).catch(()=>{});
+
+    // Interval: reaksi pesan setiap detik
     const interval = setInterval(async () => {
         elapsed++;
-        const dot = dots[elapsed % 3];
-        const timeStr = formatDuration(elapsed);
+        const currentEmoji = clockEmojis[elapsed % clockEmojis.length];
+        
         try {
-            await sock.sendMessage(chatId, {
-                text: `⏳ Berfikir${dot} (${timeStr})`,
-                edit: messageKey
-            });
-            // Refresh typing indicator
+            await sock.sendMessage(chatId, { react: { text: currentEmoji, key: quotedMsg.key } });
+            // Refresh typing indicator tiap detik
             await sock.sendPresenceUpdate('composing', chatId);
         } catch (e) {
-            // Ignore edit errors (message might be too old)
+            // Ignore errors
         }
     }, 1000);
 
     return {
         stop: (success = true) => {
             clearInterval(interval);
-            const timeStr = formatDuration(elapsed);
-            // Edit pesan final
-            const finalText = success
-                ? `✅ Selesai berfikir (${timeStr})`
-                : `❌ Gagal berfikir (timeout ${timeStr})`;
-            sock.sendMessage(chatId, { text: finalText, edit: messageKey }).catch(() => {});
+            // Reaksi final: 👨‍🍳 jika sukses cooked, ⚠️ jika timeout/gagal
+            const finalEmoji = success ? '👨‍🍳' : '⚠️';
+            sock.sendMessage(chatId, { react: { text: finalEmoji, key: quotedMsg.key } }).catch(() => {});
         },
-        getElapsed: () => elapsed,
-        getKey: () => messageKey
+        getElapsed: () => elapsed
     };
 }
 
