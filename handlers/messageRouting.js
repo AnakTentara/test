@@ -299,6 +299,8 @@ ${helpText}` : helpText;
             const isMentionedText = textMessage.includes(`@${botNumber}`);
             const isReplied = contextInfo.participant === botJid && aiSentMessageIds.has(contextInfo.stanzaId);
 
+            console.log(`[DEBUG GROUP MENTION] botNumber:${botNumber} | botJid:${botJid} | Meta:${isMentionedMeta} | Text:${isMentionedText} | Replied:${isReplied}`);
+
             if (!isMentionedMeta && !isMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
             }
