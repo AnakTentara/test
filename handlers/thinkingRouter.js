@@ -14,11 +14,11 @@ async function classifyComplexity(textMessage) {
             messages: [
                 {
                     role: 'system',
-                    content: `Kamu adalah classifier pertanyaan. Jawab HANYA dengan satu kata: SIMPLE atau COMPLEX.
-DILARANG keras memberikan penjelasan, preamble, atau reasoning. Cukup satu kata saja!
-
-SIMPLE: sapaan, obrolan santai, pertanyaan singkat, curhat, lelucon.
-COMPLEX: pertanyaan teknis/coding, analisis data, konsep ilmiah, matematika, debugging.`
+                    content: `Classify the user message into one category: SIMPLE or COMPLEX.
+Rules:
+- SIMPLE: Greetings, casual chat, short questions.
+- COMPLEX: Technical, coding, math, deep analysis.
+Output ONLY the word SIMPLE or COMPLEX.`
                 },
                 { role: 'user', content: textMessage }
             ],

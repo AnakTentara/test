@@ -532,6 +532,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                     max_tokens: 500
                 });
             }
+        } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
             const simpleInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\nKamu dalam mode SIMPLE. Segera berikan jawabanmu tanpa proses berpikir panjang.\nJawaban tersebut WAJIB dibungkus di dalam tag XML <WhatsAppMessage>.\nContoh:\n<WhatsAppMessage>Halo! Ada apa nih?</WhatsAppMessage>`;
 
