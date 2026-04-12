@@ -1,8 +1,22 @@
+const fs = require('fs');
+const path = require('path');
+const yaml = require('js-yaml');
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT } = require('./persona');
 const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
+
+// ===== CONFIG LOAD =====
+const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
+let botConfig = {
+    models: { shakaru: 'gemini-3.1-flash-lite-preview', haikaru: 'gemini-3.1-flash-lite-preview', default: 'gemini-3.1-flash-lite-preview' }
+};
+try {
+    if (fs.existsSync(CONFIG_FILE)) {
+        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
 
 // Dependency injection untuk sockSaran dari index.js
 let sockSaranGlobal = null;
@@ -61,7 +75,7 @@ BERIKAN MURNI HASIL RINGKASAN NYA SAJA. Jangan ada kata pembuka. Ingat poin-poin
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
+            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
             messages: [{ role: "user", content: promptSummarize }],
             temperature: 0.5,
             max_tokens: 500,
@@ -123,7 +137,7 @@ _memeluk lehernya_ *"kamu mau hukum aku?"*`;
         contextForAI.push({ role: "system", content: promptSaran });
 
         const completion = await openaiShakaru.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
+            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 1500,
@@ -214,7 +228,7 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
+            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 2000,
@@ -294,7 +308,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     try {
         const localClient = getLocalClient();
         const completion = await localClient.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
+            model: botConfig.models?.haikaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.9,
             max_tokens: 800,
@@ -341,7 +355,7 @@ async function forceShakaruContinue(sock, chatId, msg) {
 
     try {
         const completion = await openaiShakaru.chat.completions.create({
-            model: "gemini-3.1-flash-lite-preview",
+            model: botConfig.models?.shakaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
             messages: contextForAI,
             temperature: 0.8,
             max_tokens: 2000,
@@ -376,7 +390,7 @@ async function processHaikaruText(chatId, textMessage) {
 
     const localClient = getLocalClient();
     const completion = await localClient.chat.completions.create({
-        model: "gemini-3.1-flash-lite-preview",
+        model: botConfig.models?.haikaru || botConfig.models?.default || "gemini-3.1-flash-lite-preview",
         messages: contextForAI,
         temperature: 0.9,
         max_tokens: 200,
@@ -385,7 +399,7 @@ async function processHaikaruText(chatId, textMessage) {
     const answer = completion.choices[0].message.content;
     hHistory.messages.push({ role: "assistant", content: answer });
     haikaruMemories.set(chatId, hHistory);
-    saveHaikaruMemories();
+    saveSingleHaikaruMemory(chatId);
     return answer;
 }
 

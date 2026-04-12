@@ -1,8 +1,31 @@
+const fs = require('fs');
+const path = require('path');
+const yaml = require('js-yaml');
 const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
 const { runAgent, isOwner, incrementReply, incrementVN, getPersonaForChat } = require('./agentHandler');
+
+// ===== CONFIG LOAD =====
+const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
+let botConfig = {
+    models: { default: 'gemini-3.1-flash-lite-preview' },
+    commands: {
+        ping: ["/test", "/ping", ".ping"],
+        help: [".help", "/help"],
+        reset_memory: "/resetmemory",
+        roleplay_start: "/rp",
+        roleplay_stop: "/stop",
+        disable: "/disable",
+        enable: "/enable"
+    }
+};
+try {
+    if (fs.existsSync(CONFIG_FILE)) {
+        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
 
 let reactionCooldowns = new Map();
 
@@ -35,6 +58,26 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
             };
         } catch (e) {
             console.error('[ERROR] Gagal download gambar:', e.message);
+        }
+    }
+
+    // === QUOTED IMAGE: Jika user REPLY ke gambar, download gambar yang di-reply ===
+    const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage
+                   || msg.message?.imageMessage?.contextInfo?.quotedMessage || null;
+    if (!imageObj && quotedMsg?.imageMessage) {
+        try {
+            const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+            const stream = await downloadContentFromMessage(quotedMsg.imageMessage, 'image');
+            const chunks = [];
+            for await (const chunk of stream) chunks.push(chunk);
+            const buffer = Buffer.concat(chunks);
+            imageObj = {
+                data: buffer.toString('base64'),
+                mimeType: quotedMsg.imageMessage.mimetype || 'image/jpeg'
+            };
+            console.log(`[🖼️ QUOTED IMAGE] Berhasil download gambar dari pesan yang di-reply.`);
+        } catch (e) {
+            console.error('[ERROR] Gagal download quoted image:', e.message);
         }
     }
 
@@ -135,7 +178,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
             const client = getLocalClient();
             const persona = getPersonaForChat(chatId);
             const completion = await client.chat.completions.create({
-                model: 'gemini-3.1-flash-lite-preview',
+                model: botConfig.models?.haikaru || botConfig.models?.default || 'gemini-3.1-flash-lite-preview',
                 messages: [
                     { role: 'system', content: persona },
                     { role: 'user', content: `[SISTEM] User ${pushName} memanggil command .${commandType}. Berikan SATU kalimat singkat sebagai intro/pembuka yang ceria dan natural sebelum datanya muncul. JANGAN tambah info teknis, cukup kalimat pembuka!` }
@@ -147,16 +190,12 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         } catch { return null; }
     }
 
-    // Mencegah AI membaca chat jika grup/chat sedang masuk list Disable
-    if (disabledChats.has(chatId) && textBody !== '/enable' && textBody !== '/disable') {
-        return; 
-    }
-
-    // =============== COMMAND SYSTEM ===============
-    
     // COMMAND: /disable & /enable (KHUSUS OWNER)
-    if ((textBody === '/disable' || textBody === '/enable') && isFromMe) {
-        if (textBody === '/disable') {
+    const cmdDisable = botConfig.commands?.disable || '/disable';
+    const cmdEnable = botConfig.commands?.enable || '/enable';
+    
+    if ((textBody === cmdDisable || textBody === cmdEnable) && isFromMe) {
+        if (textBody === cmdDisable) {
             disabledChats.add(chatId);
             await sock.sendMessage(chatId, { text: '🔇 AI-Haikaru telah dimatikan di chat ini.' }, { quoted: msg });
         } else {
@@ -167,14 +206,21 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         return;
     }
 
+    // Mencegah AI membaca chat jika grup/chat sedang masuk list Disable
+    if (disabledChats.has(chatId) && textBody !== cmdEnable && textBody !== cmdDisable) {
+        return; 
+    }
+
     // COMMAND: /resetmemory (KHUSUS OWNER)
-    if (textBody === '/resetmemory' && isFromMe) {
+    const cmdReset = botConfig.commands?.reset_memory || '/resetmemory';
+    if (textBody === cmdReset && isFromMe) {
         deleteMemory(chatId);
         await sock.sendMessage(chatId, { text: '🔥 [SYSTEM] Sukses membersihkan/membakar memori file untuk kontak ini secara tuntas!' }, { quoted: msg });
         return;
     }
     // COMMAND: /rp
-    if (textBody === '/rp') {
+    const cmdRP = botConfig.commands?.roleplay_start || '/rp';
+    if (textBody === cmdRP) {
         if (!chatId.includes('182218953596969')) {
             await sock.sendMessage(chatId, { text: '❌ Akses Ilegal! Perintah Mode RP ini khusus hanya untuk Nona Acell.' }, { quoted: msg });
             return;
@@ -190,7 +236,8 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /stop
-    if (textBody === '/stop') {
+    const cmdStop = botConfig.commands?.roleplay_stop || '/stop';
+    if (textBody === cmdStop) {
         if (activeChats.has(chatId)) {
             activeChats.delete(chatId);
             saveActiveChats();
@@ -200,7 +247,8 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     }
 
     // COMMAND: /test /ping
-    if (textBody === '/test' || textBody === '/ping' || textBody === '.ping') {
+    const pingCommands = botConfig.commands?.ping || ['/test', '/ping', '.ping'];
+    if (pingCommands.includes(textBody)) {
         const timeNow = new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta' });
         const pingData = `🏓 *Pong!* Server running!
 ⏰ *Waktu server:* ${timeNow}
@@ -214,7 +262,8 @@ ${pingData}` : pingData;
     }
 
     // COMMAND: .help / /help
-    if (textBody === '.help' || textBody === '/help') {
+    const helpCommands = botConfig.commands?.help || ['.help', '/help'];
+    if (helpCommands.includes(textBody)) {
         const helpText = `🤖 *AI-HAIKARU SYSTEM* 🤖
 _Teman Cerdas & Asik di Whatsapp by Haikal_
 
@@ -353,7 +402,7 @@ ${helpText}` : helpText;
         // 3. Jika bukan VN Request, baru cek apakah ini Owner (Sistem Agent)
         if (isOwner(prefixMessage)) {
             incrementReply();
-            await runAgent(sock, chatId, prefixMessage, msg);
+            await runAgent(sock, chatId, prefixMessage, msg, imageObj);
             return;
         }
 

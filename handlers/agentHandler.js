@@ -5,11 +5,20 @@ const { getLocalClient } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories } = require('./dbHandler');
 const { setActiveVoice } = require('./voiceHandler');
 
+// ===== CONFIG LOAD =====
+const CONFIG_FILE = path.join(__dirname, '..', 'config', 'config.yml');
+let botConfig = {
+    models: { agent: 'gemini-3.1-flash-lite-preview', default: 'gemini-3.1-flash-lite-preview' },
+    owner_numbers: ['6289675732001', '6285123097680']
+};
+try {
+    if (fs.existsSync(CONFIG_FILE)) {
+        botConfig = yaml.load(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+} catch (err) { console.error('[ERROR] Gagal muat config.yml:', err.message); }
+
 // ===== OWNER CONFIG =====
-const OWNER_NUMBERS = [
-    '6289675732001', // Owner (Haikal)
-    '6285123097680', // Acell
-];
+const OWNER_NUMBERS = botConfig.owner_numbers || [];
 
 const PERSONAS_DIR = path.join(__dirname, '..', 'config', 'personas');
 const ACTIVE_CONFIG = path.join(PERSONAS_DIR, 'active.yml');
@@ -410,19 +419,31 @@ async function executeTool(toolName, args, chatId) {
 }
 
 // ===== MAIN AGENT HANDLER =====
-async function runAgent(sock, chatId, textMessage, msg) {
+async function runAgent(sock, chatId, textMessage, msg, imageObj) {
     try {
         const client = getLocalClient();
         const basePersona = getPersonaForChat(chatId);
 
+        // Jika ada imageObj, gunakan struktur multimodal Gemini
+        const userMessage = imageObj ? {
+            role: 'user',
+            content: [
+                { type: 'text', text: textMessage || 'Apa isi gambar ini?' },
+                {
+                    type: 'image_url',
+                    image_url: { url: `data:${imageObj.mimeType};base64,${imageObj.data}` }
+                }
+            ]
+        } : { role: 'user', content: textMessage };
+
         const completion = await client.chat.completions.create({
-            model: 'gemini-3.1-flash-lite-preview',
+            model: botConfig.models?.agent || 'gemini-3.1-flash-lite-preview',
             messages: [
                 {
                     role: 'system',
                     content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                 },
-                { role: 'user', content: textMessage }
+                userMessage
             ],
             tools: AGENT_TOOLS,
             tool_choice: 'auto',

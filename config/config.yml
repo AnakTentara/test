@@ -1,0 +1,19 @@
+models:
+  default: "gemma-4-26b-a4b-it"
+  shakaru: "gemini-3.1-flash-lite-preview"
+  haikaru: "gemma-4-26b-a4b-it"
+  agent: "gemma-4-26b-a4b-it"
+
+owner_numbers:
+  - "6289675732001"
+  - "6285123097680"
+
+# Command configuration (optional centralization)
+commands:
+  ping: ["/test", "/ping", ".ping"]
+  help: [".help", "/help"]
+  reset_memory: "/resetmemory"
+  roleplay_start: "/rp"
+  roleplay_stop: "/stop"
+  disable: "/disable"
+  enable: "/enable"
