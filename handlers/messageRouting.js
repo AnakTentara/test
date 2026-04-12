@@ -125,6 +125,14 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
         }
     }
 
+    // === DYNAMIC BOT TAG REPLACER ===
+    // Membantu AI memahami saat dirinya di-tag (karena format mentah dari WA cuma angka).
+    if (textMessage && sock?.user?.id) {
+        const botNumber = sock.user.id.split(':')[0].split('@')[0];
+        const tagRegex = new RegExp(`@${botNumber}\\b`, 'g');
+        textMessage = textMessage.replace(tagRegex, '@Haikaru (tagging you)');
+    }
+
     const buildPrefix = (text) =>
         `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
         

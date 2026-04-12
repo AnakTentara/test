@@ -534,7 +534,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             }
         } else {
             // ===== MODE NORMAL AGENT (SIMPLE) =====
-            const simpleInstruct = `[ATURAN PENTING]\nKamu WAJIB membungkus pesan WA akhirmu menggunakan tag XML <WhatsAppMessage>.\nContoh output yang benar:\n<WhatsAppMessage>Halo juga! Ada apa bro?</WhatsAppMessage>\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
+            const simpleInstruct = `[SYSTEM DIRECTIVE]\nThis is a SIMPLE conversation. DO NOT output your thought process. DO NOT use bullet points or planning. IMMEDIATELY output your final response wrapped in <WhatsAppMessage> tags.\nExample:\n<WhatsAppMessage>Halo bro! Ada apa nih?</WhatsAppMessage>\n\n=== ROLEPLAY INSTRUCTIONS ===\n`;
 
             completion = await client.chat.completions.create({
                 model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
