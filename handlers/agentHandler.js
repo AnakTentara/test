@@ -453,6 +453,14 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             ]
         } : { role: 'user', content: textMessage };
 
+        const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
+        
+        if (typeof userMessage.content === 'string') {
+            userMessage.content += strongInstruct;
+        } else if (Array.isArray(userMessage.content)) {
+            userMessage.content.push({ type: 'text', text: strongInstruct });
+        }
+
         // ============================================================
         // DEEP THINKING ROUTER UNTUK AGENT (OWNER)
         // ============================================================
@@ -479,17 +487,8 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
                         role: 'system',
                         content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.`
                     },
-                    JSON.parse(JSON.stringify(userMessage)) // Deep copy
+                    userMessage
                 ];
-
-                const lastMsg = deepContext[deepContext.length - 1];
-                const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
-                
-                if (typeof lastMsg.content === 'string') {
-                    lastMsg.content += strongInstruct;
-                } else if (Array.isArray(lastMsg.content)) {
-                    lastMsg.content.push({ type: 'text', text: strongInstruct });
-                }
 
                 const TIMEOUT_MS = 15 * 60 * 1000;
                 const aiPromise = client.chat.completions.create({

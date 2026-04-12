@@ -309,6 +309,18 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     const lastMsgHaikaru = hHistory.messages[hHistory.messages.length - 1];
     contextForAI.push(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj));
 
+    // Injeksi instruksi tegas di pesan terakhir agar model patuh
+    const lastMsg = contextForAI[contextForAI.length - 1];
+    const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
+    
+    if (lastMsg && lastMsg.role === 'user') {
+        if (typeof lastMsg.content === 'string') {
+            lastMsg.content += strongInstruct;
+        } else if (Array.isArray(lastMsg.content)) {
+            lastMsg.content.push({ type: 'text', text: strongInstruct });
+        }
+    }
+
     // ============================================================
     // DEEP THINKING ROUTER
     // ============================================================
@@ -336,18 +348,6 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                 { role: "system", content: persona },
                 ...contextForAI.slice(1) // Skip system prompt pertama
             ];
-
-            // Injeksi instruksi tegas di pesan terakhir agar model patuh
-            const lastMsg = deepContextForAI[deepContextForAI.length - 1];
-            const strongInstruct = `\n\n[SYSTEM DIRECTIVE]\nYou MUST respond using exactly this format:\n\n[Write your internal reasoning, planning, and persona checks here as bullet points or just text]\n\n<WhatsAppMessage>\n[Write your actual message to the user here. No quotes, no explanations, just the WhatsApp message.]\n</WhatsAppMessage>`;
-            
-            if (lastMsg && lastMsg.role === 'user') {
-                if (typeof lastMsg.content === 'string') {
-                    lastMsg.content += strongInstruct;
-                } else if (Array.isArray(lastMsg.content)) {
-                    lastMsg.content.push({ type: 'text', text: strongInstruct });
-                }
-            }
 
             const localClient = getLocalClient();
 
