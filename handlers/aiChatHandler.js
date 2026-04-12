@@ -1,6 +1,6 @@
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT } = require('./persona');
-const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory } = require('./dbHandler');
+const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
 
@@ -14,7 +14,8 @@ function setSockSaran(sock) {
 async function sendLongMessage(sock, chatId, text, quotedMsg) {
     const maxLength = 3000;
     if (text.length <= maxLength) {
-        await sock.sendMessage(chatId, { text }, { quoted: quotedMsg });
+        const sent = await sock.sendMessage(chatId, { text }, { quoted: quotedMsg });
+        if (sent?.key?.id) addAiSentMessage(sent.key.id);
         return;
     }
 
@@ -23,7 +24,8 @@ async function sendLongMessage(sock, chatId, text, quotedMsg) {
 
     for (const sentence of sentences) {
         if ((currentChunk.length + sentence.length) > maxLength) {
-            await sock.sendMessage(chatId, { text: currentChunk.trim() });
+            const sent1 = await sock.sendMessage(chatId, { text: currentChunk.trim() });
+            if (sent1?.key?.id) addAiSentMessage(sent1.key.id);
             await new Promise(resolve => setTimeout(resolve, 800));
             currentChunk = sentence;
         } else {
@@ -32,7 +34,8 @@ async function sendLongMessage(sock, chatId, text, quotedMsg) {
     }
     
     if (currentChunk.trim()) {
-        await sock.sendMessage(chatId, { text: currentChunk.trim() });
+        const sent2 = await sock.sendMessage(chatId, { text: currentChunk.trim() });
+        if (sent2?.key?.id) addAiSentMessage(sent2.key.id);
     }
 }
 
@@ -235,7 +238,8 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
                 const audioBuffer = await generateVoice(answer);
                 
                 console.log(`[🎤 VOICE NOTE] Mengirim OGG/OPUS ke WhatsApp...`);
-                await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+                const sentPtt = await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
+                if (sentPtt?.key?.id) addAiSentMessage(sentPtt.key.id);
                 incrementVN();
                 console.log(`[🎤 VOICE NOTE] Terkirim Sukses!`);
             } catch (err) {

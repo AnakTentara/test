@@ -142,6 +142,32 @@ function deleteMemory(chatId) {
     }
 }
 
+// --- AI MESSAGE TRACKER ---
+let aiSentMessageIds = new Set();
+const AI_SENT_IDS_FILE = path.join(DATA_DIR, 'ai_sent_ids.json');
+
+function addAiSentMessage(msgId) {
+    if (!msgId) return;
+    aiSentMessageIds.add(msgId);
+    // Keep it small to avoid blowing up memory, last 1000 messages is enough
+    if (aiSentMessageIds.size > 1000) {
+        const arr = Array.from(aiSentMessageIds);
+        aiSentMessageIds = new Set(arr.slice(-1000));
+    }
+    try {
+        fs.writeFileSync(AI_SENT_IDS_FILE, JSON.stringify(Array.from(aiSentMessageIds)));
+    } catch(err) {}
+}
+
+function loadAiSentMessages() {
+    try {
+        if (fs.existsSync(AI_SENT_IDS_FILE)) {
+            const arr = JSON.parse(fs.readFileSync(AI_SENT_IDS_FILE, 'utf8'));
+            aiSentMessageIds = new Set(arr);
+        }
+    } catch(err) {}
+}
+
 module.exports = {
     activeChats,
     disabledChats,
@@ -154,5 +180,8 @@ module.exports = {
     loadDisabledChats,
     saveDisabledChats,
     deleteMemory,
-    saveActiveChats
+    saveActiveChats,
+    addAiSentMessage,
+    loadAiSentMessages,
+    aiSentMessageIds
 };

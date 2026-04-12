@@ -1,4 +1,4 @@
-const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories } = require('./dbHandler');
+const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
@@ -294,7 +294,7 @@ ${helpText}` : helpText;
                              
             const isMentionedMeta = contextInfo.mentionedJid?.includes(botJid) || false;
             const isMentionedText = textMessage.includes(`@${botNumber}`);
-            const isReplied = contextInfo.participant === botJid;
+            const isReplied = contextInfo.participant === botJid && aiSentMessageIds.has(contextInfo.stanzaId);
 
             if (!isMentionedMeta && !isMentionedText && !isReplied) {
                 return; // Abaikan chat grup biasa jika tidak dipanggil
