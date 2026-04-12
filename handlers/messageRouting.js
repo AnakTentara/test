@@ -255,15 +255,10 @@ ${helpText}` : helpText;
         incrementReply();
         await processShakaruChat(sock, chatId, textMessage, imageObj, msg);
     } 
-    // Jika Owner chat -> Cek apakah ada perintah Agent
-    else if (!activeChats.has(chatId) && isOwner(prefixMessage) && !isFromMe) {
-        incrementReply();
-        await runAgent(sock, chatId, prefixMessage, msg);
-    }
-    // Jika Chat TIDAK Mode RP (Publik) -> Kirim ke Haikaru
+    // ROUTING UNTUK BUKAN RP (OWNER & PUBLIK)
     else if (!activeChats.has(chatId) && !isFromMe) {
         
-        // Pengecekan Grup: Haikaru HANYA muncul jika di tag atau di-reply!
+        // Pengecekan Grup: Haikaru/Agent HANYA muncul jika di tag atau di-reply!
         if (isGroup) {
             const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
             const contextInfo = msg.message.extendedTextMessage?.contextInfo || {};
@@ -271,11 +266,11 @@ ${helpText}` : helpText;
             const isReplied = contextInfo.participant === botJid;
 
             if (!isMentioned && !isReplied) {
-                return; // Abaikan chat grup biasa jika Haikaru tidak dipanggil
+                return; // Abaikan chat grup biasa jika tidak dipanggil
             }
         }
 
-        // 1. Emoji Reaction Logic
+        // 1. Emoji Reaction Logic (Berlaku untuk Publik dan Owner)
         const now = Date.now();
         const lastReact = reactionCooldowns.get(chatId) || 0;
         
@@ -306,12 +301,18 @@ ${helpText}` : helpText;
             }
         }
 
-        // 3. Kirim pesan ke Haikaru (dengan konteks prefix)
+        // 3. Jika bukan VN Request, baru cek apakah ini Owner (Sistem Agent)
+        if (isOwner(prefixMessage)) {
+            incrementReply();
+            await runAgent(sock, chatId, prefixMessage, msg);
+            return;
+        }
+
+        // 4. Jika bukan Owner dan bukan VN, jalankan Haikaru Publik biasa
         incrementReply();
-        await processHaikaruChat(sock, chatId, buildPrefix(textMessage), imageObj, msg);
+        await processHaikaruChat(sock, chatId, prefixMessage, imageObj, msg);
     }
 }
-
 module.exports = {
     handleIncomingMessage
 };
