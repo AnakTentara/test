@@ -10,7 +10,7 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     // Abaikan jika bukan dari bot utama (bot saran tidak membalas chat)
     if (!isShakaruInstance) return;
 
-    if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
+    if (!msg.message || msg.key.remoteJid === 'status@broadcast' || msg.key.remoteJid?.endsWith('@newsletter')) return;
 
     const messageType = Object.keys(msg.message)[0];
     const isFromMe = msg.key.fromMe;
