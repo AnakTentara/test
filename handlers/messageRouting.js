@@ -234,7 +234,7 @@ ${helpText}` : helpText;
         try {
             await sock.sendPresenceUpdate('recording', chatId);
             console.log(`[🎤 VOICE NOTE] Merender audio: "${query.substring(0,30)}..."`);
-            const audioBuffer = await generateVoice(query, 'id-ID-ArdiNeural');
+            const audioBuffer = await generateVoice(query);
             
             await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
             console.log(`[🎤 VOICE NOTE] Terkirim (OGG/OPUS)!`);
@@ -291,7 +291,7 @@ ${helpText}` : helpText;
                 console.log(`[🎤 VOICE NOTE] Deteksi NL request VN: "${textMessage.substring(0,30)}"`);
                 const { processHaikaruText } = require('./aiChatHandler');
                 const shortReply = await processHaikaruText(chatId, textMessage);
-                const audioBuffer = await generateVoice(shortReply, 'id-ID-ArdiNeural');
+                const audioBuffer = await generateVoice(shortReply);
                 await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
                 incrementVN();
                 incrementReply();

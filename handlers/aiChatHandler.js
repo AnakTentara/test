@@ -232,7 +232,7 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg) {
             try {
                 await sock.sendPresenceUpdate('recording', chatId);
                 console.log(`[🎤 VOICE NOTE] Sedang merender audio Shakaru...`);
-                const audioBuffer = await generateVoice(answer, 'id-ID-ArdiNeural');
+                const audioBuffer = await generateVoice(answer);
                 
                 console.log(`[🎤 VOICE NOTE] Mengirim OGG/OPUS ke WhatsApp...`);
                 await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: msg });
