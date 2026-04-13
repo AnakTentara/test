@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
-const { getLocalClient } = require('./geminiRotator');
+const { generateContentRotator } = require('./geminiRotator');
 const { disabledChats, saveDisabledChats, haikaruMemories, saveHaikaruMemories, getRecentChatLog } = require('./dbHandler');
 const { setActiveVoice } = require('./voiceHandler');
 const { scrubThoughts, sendLongMessage } = require('./utils');
@@ -319,17 +319,8 @@ async function executeTool(toolName, args, chatId) {
         case 'update_persona_slot': {
             const { slot, instruction } = args;
             const currentPersona = readPersonaSlot(slot);
-            const client = getLocalClient();
-            const mergeCompletion = await client.chat.completions.create({
-                model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
-                messages: [
-                    { role: 'system', content: 'Kamu adalah editor persona AI. Gabungkan persona lama dengan instruksi baru secara natural. Output hanya teks persona baru saja, tanpa komentar.' },
-                    { role: 'user', content: `PERSONA LAMA:\n${currentPersona}\n\nINSTRUKSI BARU:\n${instruction}\n\nHasilkan persona yang telah diupdate:` }
-                ],
-                temperature: 0.6,
-                max_tokens: 1500
-            });
-            const newPersona = mergeCompletion.choices[0].message.content.trim();
+            const mergeResp = await generateContentRotator(getConfig().models?.agent || 'gemini-3.1-flash-lite-preview', [{ role: 'user', parts: [{ text: `PERSONA LAMA:\n${currentPersona}\n\nINSTRUKSI BARU:\n${instruction}\n\nHasilkan persona yang telah diupdate:` }] }], { systemInstruction: { parts: [{ text: 'Kamu adalah editor persona AI. Gabungkan persona lama dengan instruksi baru secara natural. Output hanya teks persona baru saja, tanpa komentar.' }] }, temperature: 0.6, maxOutputTokens: 1500 });
+            const newPersona = mergeResp.text.trim();
             updatePersonaSlot(slot, newPersona);
             return `✅ Persona *Slot ${slot}* berhasil diupdate!\n\n_Instruksi baru:_ ${instruction}`;
         }
@@ -438,201 +429,59 @@ async function executeTool(toolName, args, chatId) {
 // ===== MAIN AGENT HANDLER =====
 async function runAgent(sock, chatId, textMessage, msg, imageObj) {
     try {
-        const client = getLocalClient();
         const basePersona = getPersonaForChat(chatId);
-
-        // Jika ada imageObj, gunakan struktur multimodal Gemini
         const userMessage = imageObj ? {
             role: 'user',
-            content: [
-                { type: 'text', text: textMessage || 'Apa isi gambar ini?' },
-                {
-                    type: 'image_url',
-                    image_url: { url: `data:${imageObj.mimeType};base64,${imageObj.data}` }
-                }
+            parts: [
+                { text: textMessage || 'Apa isi gambar ini?' },
+                { inlineData: { mimeType: imageObj.mimeType, data: imageObj.data } }
             ]
-        } : { role: 'user', content: textMessage };
+        } : { role: 'user', parts: [{ text: textMessage }] };
 
-        // === INJECT RECENT CHAT LOG untuk konteks percakapan ===
         const recentLog = getRecentChatLog(chatId, 15);
-        let chatLogContext = null;
+        let logText = "";
         if (recentLog.length > 0) {
-            const logText = recentLog.map(l => `[${l.time}] ${l.name}: ${l.text}`).join('\n');
-            chatLogContext = {
-                role: 'system',
-                content: `[RECENT CHAT LOG - Pesan-pesan terakhir di chat ini untuk konteks percakapan. Gunakan ini untuk memahami topik yang sedang dibahas]\n${logText}`
-            };
+            logText = "[RECENT CHAT LOG]\n" + recentLog.map(l => `[${l.time}] ${l.name}: ${l.text}`).join('\n');
         }
 
-
-
-        // ============================================================
-        // DEEP THINKING ROUTER UNTUK AGENT (OWNER)
-        // ============================================================
         const thinkingModel = getConfig().models?.thinking;
-        const hasThinkingModel = !!thinkingModel;
-        
-        // Hanya classify jika ada thinking model yang dikonfigurasi DAN pesan cukup panjang
-        const isComplex = hasThinkingModel && textMessage && textMessage.length > 5
-            ? await classifyComplexity(textMessage)
-            : false;
+        const isComplex = (!!thinkingModel) && textMessage && textMessage.length > 5 ? await classifyComplexity(textMessage) : false;
 
         let completion;
-        let thinkingAnim = null;
-        let timeoutTimer = null;
+        const genAiTools = [{ functionDeclarations: AGENT_TOOLS.map(t => t.function) }];
 
         if (isComplex) {
             console.log(`[🧠 AGENT DEEP THINK] Routing ke model thinking: ${thinkingModel}`);
-            try {
-                // Mulai animasi berfikir
-                thinkingAnim = await startThinkingAnimation(sock, chatId, msg);
-                
-                // Injeksi spesifik untuk Deep Thinking (COMPLEX)
-                const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING. Topik ini lumayan kompleks.\n2. Kamu WAJIB menerangkan secara SANGAT DETAIL, KOMPREHENSIF, dan PANJANG. Tuliskan jawaban panjang yang menuntaskan pertanyaan dengan sempurna. Jangan pelit kata.\n3. WAJIB letakkan proses THINKING/DRAFT awalmu di dalam tag <thought> dan </thought>. (PENTING: Tulis proses thinking secara RINGKAS POINT-POINT SAJA untuk menghemat waktu komputasi, hindari monolog kepanjangan).\n4. Setelah tag </thought>, berikan jawaban WhatsApp finalmu yang dibungkus tag <WhatsAppMessage> dan </WhatsAppMessage>.`;
+            const complexInstruct = `\n\n[ATURAN OUTPUT MUTLAK]\n1. Kamu dalam mode DEEP THINKING.\n2. Detail, Komprehensif, dan Panjang.\n3. THINKING di <thought> tag.\n4. Jawaban WhatsApp final di <WhatsAppMessage> tag.`;
+            const sys = `${basePersona}\n\n[=== INSTRUKSI KHUSUS OWNER ===]\n${logText}\n${complexInstruct}`;
 
-                const deepContext = [
-                    {
-                        role: 'system',
-                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.${complexInstruct}`
-                    },
-                    userMessage
-                ];
-
-                const TIMEOUT_MS = 15 * 60 * 1000;
-                const aiPromise = client.chat.completions.create({
-                    model: thinkingModel,
-                    messages: deepContext,
-                    tools: AGENT_TOOLS,
-                    tool_choice: 'auto',
-                    temperature: 0.7,
-                    max_tokens: 2000
-                });
-
-                const timeoutPromise = new Promise((_, reject) => {
-                    timeoutTimer = setTimeout(() => {
-                        reject(new Error('THINKING_TIMEOUT'));
-                    }, TIMEOUT_MS);
-                });
-
-                completion = await Promise.race([aiPromise, timeoutPromise]);
-                clearTimeout(timeoutTimer);
-                
-                if (thinkingAnim) thinkingAnim.stop(true);
-                // Delay kecil biar pesan "Selesai berfikir" terlihat dulu
-                await new Promise(r => setTimeout(r, 500));
-
-            } catch (error) {
-                if (timeoutTimer) clearTimeout(timeoutTimer);
-                if (thinkingAnim) thinkingAnim.stop(false);
-                
-                console.error('[🧠 AGENT DEEP THINK] Error:', error.message);
-                console.log('[🧠 AGENT DEEP THINK] Fallback ke model biasa...');
-                
-                completion = await client.chat.completions.create({
-                    model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nLANGSUNG BALAS PESAN USER. JANGAN menulis analisis, JANGAN menulis bullet point, JANGAN menulis draft, JANGAN menulis checklist. LANGSUNG TULIS JAWABAN CHAT SAJA seperti kamu sedang mengetik di WhatsApp. Tidak perlu memikirkan format, langsung jawab secara natural.`
-                        },
-                        userMessage
-                    ],
-                    tools: AGENT_TOOLS,
-                    tool_choice: 'auto',
-                    temperature: 0.7,
-                    max_tokens: 500
-                });
-            }
+            completion = await generateContentRotator(thinkingModel, [userMessage], { systemInstruction: { parts: [{ text: sys }] }, tools: genAiTools, temperature: 0.7, maxOutputTokens: 2500 });
         } else {
-            // ===== MODE NORMAL AGENT (SIMPLE) =====
-            let normalAnim = null;
-            if (msg) normalAnim = await startNormalAnimation(sock, chatId, msg);
-            else await sock.sendPresenceUpdate('composing', chatId);
+            const simpleInstruct = `\n\n[ATURAN OUTPUT]\nBalas natural. Thinking di <thought>. Jawaban final di <WhatsAppMessage>.`;
+            const sys = `${basePersona}\n\n[=== INSTRUKSI KHUSUS OWNER ===]\n${logText}\n${simpleInstruct}`;
 
-            const simpleInstruct = `\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nBALAS PESAN USER SECARA NATURAL. Jika kamu perlu berpikir, letakkan di dalam tag <thought> dan </thought>. Setelah itu, WAJIB bungkus jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>. Tulis jawaban seolah kamu mengetik di WhatsApp. JANGAN menulis analisis, draft, atau checklist di luar tag thought.`;
-
-            completion = await client.chat.completions.create({
-                model: getConfig().models?.agent || 'gemini-3.1-flash-lite-preview',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `${basePersona}\n\n[=== INSTRUKSI KHUSUS UNTUK CHAT INI (KARENA INI OWNER) ===]\nDi chat private ini, selain menjadi karakter di atas, KAMU JUGA MEMILIKI AKSES KE TOOLS SISTEM (Tugas Utama: Mengganti suara, dll). Walaupun kamu punya alat, tetaplah membalas dengan riang dan santai sesuai karaktermu utamamu!\n\nJIKA OWNER MEMINTA/MENGOMENTARI untuk mengubah suara, nada bicara, logat, atau menjadi karakter tertentu (misal: "suaramu kurang ceo", "ganti logatmu", "suara rendah"), KAMU WAJIB MEMANGGIL TOOL 'change_voice' DAN MEMILIH ID SUARA YANG PALING COCOK! JANGAN MENJAWAB BAHWA KAMU HANYA BISA TEKS.${simpleInstruct}`
-                    },
-                    ...(chatLogContext ? [chatLogContext] : []),
-                    userMessage
-                ],
-                tools: AGENT_TOOLS,
-                tool_choice: 'auto',
-                temperature: 0.7,
-                max_tokens: 2000
-            });
-            
-            if (normalAnim) normalAnim.stop();
-            // Simpan editKey buat dikirim ke sendLongMessage nanti (di scope fungsi luar butuh diselipkan)
-            if (normalAnim) msg.__editKeyForNormal = normalAnim.getKey();
+            completion = await generateContentRotator(getConfig().models?.agent || 'gemini-3.1-flash-lite-preview', [userMessage], { systemInstruction: { parts: [{ text: sys }] }, tools: genAiTools, temperature: 0.7, maxOutputTokens: 2000 });
         }
 
         const rawAnswer = completion.text || '';
-
-        // Log FULL RAW ke console untuk Owner
-        console.log(`\n============== AGENT AI RAW RESPONSE ==============`);
-        console.log(rawAnswer);
-        console.log(`====================================================\n`);
+        console.log(`\n============== AGENT AI RAW RESPONSE ==============\n${rawAnswer}\n====================================================\n`);
 
         const answer = scrubThoughts(rawAnswer);
-
-        const functionCalls = completion.functionCalls; // from native genAI
+        const functionCalls = completion.functionCalls;
 
         if (functionCalls && functionCalls.length > 0) {
             for (const tc of functionCalls) {
-                const toolName = tc.name;
-                const toolArgs = tc.args;
-                console.log(`\n[🤖 AGENT] Mengeksekusi tool: ${toolName}`, toolArgs);
-                const result = await executeTool(toolName, toolArgs, chatId);
+                console.log(`\n[🤖 AGENT] Tool: ${tc.name}`, tc.args);
+                const result = await executeTool(tc.name, tc.args, chatId);
                 await sock.sendMessage(chatId, { text: result }, { quoted: msg });
             }
         } else {
-            let reply = rawAnswer || 'Ada yang bisa gue bantu?';
-            const cleanReply = reply.trim().replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-
-            // Jaga-jaga kalau Gemini nge-return teks JSON manual alih-alih API Function Calling (ReAct halusinasi)
-            if (cleanReply.startsWith('{') && cleanReply.includes('"action"')) {
-                try {
-                    const parsed = JSON.parse(cleanReply);
-                    if (parsed.action) {
-                        let parsedArgs = parsed.action_input || {};
-                        if (typeof parsedArgs === 'string') {
-                            parsedArgs = JSON.parse(parsedArgs);
-                        }
-
-                        console.log(`\n[🤖 AGENT] Mengeksekusi manual JSON tool: ${parsed.action}`, parsedArgs);
-                        // Cek kalau dia halusinasi ID, paksakan fallback
-                        if (parsed.action === 'change_voice' && parsedArgs.voice_id && !['883b6b7c', 'ac09aeb4', '3b9f1e27', 'a845c7de', '87cb2405', '578b4be2', 'f00e45a1'].includes(parsedArgs.voice_id)) {
-                            parsedArgs.voice_id = '883b6b7c';
-                        }
-
-                        const result = await executeTool(parsed.action, parsedArgs, chatId);
-                        return await sock.sendMessage(chatId, { text: result }, { quoted: msg });
-                    }
-                } catch (e) {
-                    console.log("[🤖 AGENT] Fallback parser JSON gagal, melanjutkan sebagai teks biasa.");
-                }
-            }
-
-            console.log(`\n[🤖 AGENT] Membalas tanpa tool: ${answer.substring(0, 50).replace(/\n/g, ' ')}...`);
-            await sendLongMessage(sock, chatId, answer, msg, msg.__editKeyForNormal);
+            await sendLongMessage(sock, chatId, answer, msg);
         }
     } catch (err) {
         console.error('[🤖 AGENT ERROR]', err.message);
         await sock.sendMessage(chatId, { text: `❌ Agent error: ${err.message}` }, { quoted: msg });
     }
-}
-
-function isOwner(identifier) {
-    return getOwnerNumbers().some(num => {
-        const localNum = '0' + num.slice(2);
-        return identifier.includes(num) || identifier.includes(localNum);
-    });
 }
 
 module.exports = {

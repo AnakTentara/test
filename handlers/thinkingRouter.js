@@ -1,4 +1,4 @@
-const { getLocalClient } = require('./geminiRotator');
+const { generateContentRotator } = require('./geminiRotator');
 const { getConfig } = require('./configManager');
 
 /**
@@ -8,54 +8,12 @@ const { getConfig } = require('./configManager');
  */
 async function classifyComplexity(textMessage) {
     try {
-        const localClient = getLocalClient();
-        const completion = await localClient.chat.completions.create({
-            model: getConfig().models?.haikaru || 'gemma-4-26b-a4b-it',
-            messages: [
-                {
-                    role: 'system',
-                    content: `Classify the user message into one category: SIMPLE or COMPLEX.
-Rules:
-- COMPLEX: The user EXPLICITLY asks the AI to "think harder", "think deeper", "coba pikirin lagi", "pikirkan lebih keras", "coba analisis lebih dalam", "berpikir lebih keras", or similar phrases demanding a deeper mental effort.
-- SIMPLE: Everything else! Including normal questions, math, coding, physics, casual chat, and greetings. IF the user does NOT explicitly say "think harder/deeper", it is ALWAYS SIMPLE.
-Output ONLY the word SIMPLE or COMPLEX.`
-                },
-                { role: 'user', content: textMessage }
-            ],
-            temperature: 0.1,
-            max_tokens: 10,
-        });
-
-        const result = (completion.choices[0].message.content || '').toUpperCase();
-        console.log(`[🧠 CLASSIFIER RAW] ${result.replace(/\n/g, ' ')}`);
-        
-        // Ekstrak kata SIMPLE atau COMPLEX yang paling terakhir muncul
-        const matches = result.match(/(SIMPLE|COMPLEX)/g);
-        const verdict = matches ? matches[matches.length - 1] : 'SIMPLE';
-        
-        console.log(`[🧠 CLASSIFIER] "${textMessage.substring(0, 40)}..." → ${verdict}`);
-        return verdict === 'COMPLEX';
-    } catch (err) {
-        console.error('[🧠 CLASSIFIER ERROR]', err.message);
-        return false; // Default ke SIMPLE jika classifier gagal
-    }
+        const sys = "Tugasmu adalah mengklasifikasi apakah sebuah pesan WhatsApp dari user membutuhkan 'Deep Thinking' (penalaran mendalam/analisis panjang/pemecahan masalah) atau 'Simple' (obrolan santai/perintah pendek).\n\nBalas HANYA dengan satu kata: 'COMPLEX' atau 'SIMPLE'.";
+        const res = await generateContentRotator("gemini-3.1-flash-lite-preview", [{ role: 'user', parts: [{ text: textMessage }] }], { systemInstruction: { parts: [{ text: sys }] }, temperature: 0.1, maxOutputTokens: 10 });
+        return res.text.trim().toUpperCase() === 'COMPLEX';
+    } catch (err) { return false; }
 }
 
-/**
- * Format durasi detik menjadi string yang readable.
- * 5 → "5s", 75 → "1m 15s"
- */
-function formatDuration(seconds) {
-    if (seconds < 60) return `${seconds}s`;
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}m ${s}s`;
-}
-
-/**
- * Mulai animasi "Berfikir" di WhatsApp dengan reaksi emoji setiap detik.
- * @returns {{ stop: Function }} controller untuk menghentikan animasi
- */
 async function startThinkingAnimation(sock, chatId, quotedMsg) {
     const clockEmojis = ['🕛','🕧','🕐','🕜','🕑','🕝','🕒','🕞','🕓','🕟','🕔','🕠','🕕','🕡','🕖','🕢','🕗','🕣','🕘','🕤','🕙','🕥','🕚','🕦'];
     const dots = ['.', '..', '...'];

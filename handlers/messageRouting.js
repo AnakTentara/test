@@ -3,7 +3,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds, addChatLog } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
-const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
+const { generateContentRotator } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
 const { runAgent, isOwner, incrementReply, incrementVN, getPersonaForChat } = require('./agentHandler');
 const { getConfig } = require('./configManager');
@@ -286,18 +286,12 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
     // Fungsi generate intro singkat dari AI untuk command otomatis
     async function getAICommandIntro(commandType) {
         try {
-            const client = getLocalClient();
             const persona = getPersonaForChat(chatId);
-            const completion = await client.chat.completions.create({
-                model: getConfig().models?.haikaru || getConfig().models?.default || 'gemini-3.1-flash-lite-preview',
-                messages: [
-                    { role: 'system', content: persona },
-                    { role: 'user', content: `[SISTEM] User ${pushName} memanggil command .${commandType}. Berikan SATU kalimat singkat sebagai intro/pembuka yang ceria dan natural sebelum datanya muncul. JANGAN tambah info teknis, cukup kalimat pembuka!` }
-                ],
-                temperature: 0.9,
-                max_tokens: 80
-            });
-            return completion.choices[0].message.content.trim();
+            const res = await generateContentRotator(getConfig().models?.default || "gemini-3.1-flash-lite-preview", [
+                { role: 'user', parts: [{ text: `[SISTEM] User ${pushName} memanggil command .${commandType}. Berikan SATU kalimat singkat sebagai intro/pembuka yang ceria dan natural sebelum datanya muncul. JANGAN tambah info teknis, cukup kalimat pembuka!` }] }
+            ], { systemInstruction: { parts: [{ text: persona }] }, temperature: 0.8, maxOutputTokens: 100 });
+            const intro = res.text.trim();
+            return intro.trim();
         } catch { return null; }
     }
 

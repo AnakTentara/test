@@ -337,17 +337,12 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             if (chatLogSystemMsg) deepContextForAI.push(chatLogSystemMsg);
             deepContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
-            const localClient = getLocalClient();
+            
 
             // Race: AI response vs timeout 15 menit
             const TIMEOUT_MS = 15 * 60 * 1000;
             
-            const aiPromise = localClient.chat.completions.create({
-                model: thinkingModel,
-                messages: deepContextForAI,
-                temperature: 0.7,
-                max_tokens: 2000,
-            });
+            const aiPromise = callGenAI(thinkingModel, deepContextForAI, 0.7, 2000);
 
             const timeoutPromise = new Promise((_, reject) => {
                 timeoutTimer = setTimeout(() => {
@@ -411,7 +406,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                         }
                     }
 
-                    const localClient = getLocalClient();
+                    
                     const fbRawAnswer = await callGenAI(getConfig().models?.haikaru || 'gemma-4-26b-a4b-it', fallbackContext, 0.9, 800);
                     const fbAnswer = scrubThoughts(fbRawAnswer);
                     hHistory.messages.push({ role: 'model', parts: [{ text: fbAnswer }] });
@@ -445,8 +440,8 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             if (chatLogSystemMsg) simpleContextForAI.push(chatLogSystemMsg);
             simpleContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
-            const localClient = getLocalClient();
-            const rawAnswer = await callGenAI(getConfig().models?.haikaru || getConfig().models?.default || "gemma-4-26b-a4b-it", simpleContextForAI, 0.9, 800);
+            
+            const rawAnswer = await callGenAI(getConfig().models?.haikaru || getConfig().models?.default || 'gemma-4-26b-a4b-it', simpleContextForAI, 0.9, 800);
 
             // (rawAnswer langsung returned dari callGenAI)
             if (normalAnim) normalAnim.stop();
@@ -525,7 +520,7 @@ async function processHaikaruText(chatId, textMessage) {
         ...hHistory.messages
     ];
 
-    const localClient = getLocalClient();
+    
     const rawAnswer = await callGenAI(getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", contextForAI, 0.9, 200);
 
     // (rawAnswer langsung returned dari callGenAI)

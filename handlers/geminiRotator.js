@@ -5,10 +5,11 @@ const geminiKeys = [];
 for (const envKey of Object.keys(process.env)) {
     if (envKey.startsWith('GEMINI_API_KEY_') && process.env[envKey]) {
         geminiKeys.push({ label: envKey, key: process.env[envKey] });
+        if (geminiKeys.length >= 6) break; // LIMIT TO 6 KEYS
     }
 }
 
-console.log(`[🔑 NATIVE ROTATOR] Loaded ${geminiKeys.length} Gemini API keys dari .env (PURE NATIVE)`);
+console.log(`[🔑 NATIVE ROTATOR] Loaded ${geminiKeys.length} Gemini API keys dari .env (PURE NATIVE - Max 6 Keys)`);
 
 const genAIclients = geminiKeys.map(k => new GoogleGenAI({ apiKey: k.key }));
 
