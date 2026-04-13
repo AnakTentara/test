@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "@google/genai": "^1.49.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "agent-base": "^6.0.2",
     "archiver": "^5.3.2",

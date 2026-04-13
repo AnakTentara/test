@@ -11,6 +11,43 @@ function scrubThoughts(text) {
     let cleaned = text;
 
     // ============================================================
+    // LAYER 0: Deteksi Native Gemma 4 Thinking Tokens (RESMI GOOGLE)
+    // Format: <|channel>thought ... <channel|> (jawaban di luar token ini)
+    // Ref: https://ai.google.dev/gemma/docs/capabilities/thinking
+    // ============================================================
+    
+    const gemmaThinkStart = '<|channel>thought';
+    const gemmaThinkEnd = '<channel|>';
+    const gemmaThinkIdx = cleaned.indexOf(gemmaThinkStart);
+    const gemmaThinkEndIdx = cleaned.lastIndexOf(gemmaThinkEnd);
+
+    if (gemmaThinkIdx !== -1 && gemmaThinkEndIdx !== -1 && gemmaThinkEndIdx > gemmaThinkIdx) {
+        // Ambil semua teks SETELAH token <channel|> (itu adalah jawaban final)
+        const nativeAnswer = cleaned.substring(gemmaThinkEndIdx + gemmaThinkEnd.length).trim();
+        // Bersihkan sisa special tokens Gemma yang mungkin ikut
+        const cleanedNative = nativeAnswer.replace(/<\|?\w+\|?>/g, '').replace(/<turn\|>/g, '').trim();
+        if (cleanedNative.length > 3) {
+            return cleanWhatsAppFormat(cleanedNative);
+        }
+    } else if (gemmaThinkIdx !== -1 && gemmaThinkEndIdx === -1) {
+        // Kasus: ada thinking start tapi terpotong (no end token) — buang semuanya dari start
+        const beforeThink = cleaned.substring(0, gemmaThinkIdx).trim();
+        if (beforeThink.length > 3) return cleanWhatsAppFormat(beforeThink);
+        // Jika thinking start ada di awal dan tidak ada end token, seluruh teks adalah thinking terpotong
+        return '';
+    }
+
+    // Juga deteksi token <|think|> (Gemma 31B style)
+    // Jika ada <|think|> DAN <channel|>, treat <channel|> sebagai separator
+    if (/<\|think\|>/i.test(cleaned) && cleaned.includes('<channel|>')) {
+        const sepIdx = cleaned.lastIndexOf('<channel|>');
+        const answerAfterSep = cleaned.substring(sepIdx + '<channel|>'.length).trim()
+            .replace(/<\|?\w+\|?>/g, '').replace(/<turn\|>/g, '').trim();
+        if (answerAfterSep.length > 3) return cleanWhatsAppFormat(answerAfterSep);
+    }
+    cleaned = cleaned.replace(/<\|think\|>/gi, '').trim();
+
+    // ============================================================
     // LAYER 1: Ekstraksi tag eksplisit (paling andal jika ada)
     // ============================================================
 
@@ -54,6 +91,25 @@ function scrubThoughts(text) {
     }
 
     // ============================================================
+    // LAYER 1.5: "Final Quoted Block" Extraction (GEMMA 4 PATTERN)
+    // 
+    // Gemma 4 26B sering membungkus jawaban FINAL-nya dalam "..."
+    // setelah beberapa draft/revisi/self-correction. Kita ambil 
+    // quoted block terakhir yang substantial (>20 chars).
+    //
+    // Pattern khas:
+    //   *   *Draft 1*: blabla
+    //   *   *Draft 2*: blabla  
+    //   *   "JAWABAN FINAL YANG BENAR ADA DI SINI"
+    //   *   Single asterisk? Yes.  ← checklist
+    // ============================================================
+
+    const quotedAnswer = extractLastQuotedBlock(cleaned);
+    if (quotedAnswer && quotedAnswer.length > 20 && !looksLikeThinking(quotedAnswer)) {
+        return cleanWhatsAppFormat(quotedAnswer);
+    }
+
+    // ============================================================
     // LAYER 2: Heuristic Bullet-Point CoT Detection
     // Mendeteksi pola "mikir keras" khas Gemma-4:
     //   *   User: ...
@@ -72,6 +128,72 @@ function scrubThoughts(text) {
 }
 
 /**
+ * Ekstrak quoted block terakhir dari output Gemma 4.
+ * Gemma sering membungkus jawaban final dalam "..." di akhir thinking.
+ * Mendukung single-line dan multi-line quoted blocks.
+ */
+function extractLastQuotedBlock(text) {
+    const lines = text.split('\n');
+    const candidates = [];
+    let quoteLines = null;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        // Strip leading bullet prefix: "*   " 
+        const content = trimmed.replace(/^\*\s+/, '').trim();
+
+        if (quoteLines === null) {
+            // Not inside a quote — check if one starts here
+            if (content.startsWith('"')) {
+                const inner = content.slice(1);
+                // Check if single-line quote (ends with " too)
+                const lastQuoteIdx = inner.lastIndexOf('"');
+                if (lastQuoteIdx > 0) {
+                    // Single-line quoted block
+                    candidates.push(inner.slice(0, lastQuoteIdx));
+                } else if (inner.length > 0) {
+                    // Multi-line quoted block starts
+                    quoteLines = [inner];
+                }
+            }
+        } else {
+            // Inside a multi-line quoted block
+            const stripped = trimmed.replace(/^\*\s+/, '').trim();
+
+            // Check if this line has a closing quote
+            if (stripped.endsWith('"')) {
+                quoteLines.push(stripped.slice(0, -1));
+                candidates.push(quoteLines.join('\n'));
+                quoteLines = null;
+            } else if (stripped.startsWith('"')) {
+                // A new quote started before old one closed — 
+                // discard the broken old one, start fresh
+                quoteLines = [stripped.slice(1)];
+            } else {
+                quoteLines.push(stripped);
+            }
+        }
+    }
+
+    // If a multi-line quote was never closed (truncated), still consider it
+    if (quoteLines && quoteLines.length > 0) {
+        const joined = quoteLines.join('\n').trim();
+        if (joined.length > 20) candidates.push(joined);
+    }
+
+    // Return the LAST substantial quoted block
+    for (let i = candidates.length - 1; i >= 0; i--) {
+        const q = candidates[i].trim();
+        // Must be substantial and not look like a copied system instruction
+        if (q.length > 20 && !q.startsWith('JANGAN') && !q.startsWith('[ATURAN')) {
+            return q;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Deteksi apakah sebuah teks kemungkinan besar adalah CoT bocor.
  */
 function looksLikeThinking(text) {
@@ -83,17 +205,19 @@ function looksLikeThinking(text) {
     for (const line of lines) {
         const t = line.trim();
         if (
-            /^\*\s+/.test(t) ||                    // *   bullet (trimmed)
-            /^\*\s*\*[A-Za-z]/.test(t) ||          // *   *Draft:* / *   *Applying*
+            /^\*\s{2,}/.test(t) ||                   // *   bullet (3+ spaces = thinking indent)
+            /^\*\s*\*[A-Za-z]/.test(t) ||             // *   *Draft:* / *   *Applying*
             /^\*\s+\(?[A-Z][a-zA-Z\s\/-]*\)?:/.test(t) || // *   User: / *   Message:
-            /^\(\w+/.test(t) ||                     // (Self-correction:...)
+            /^\(\w+/.test(t) ||                       // (Self-correction:...)
+            /^\*\s+\*?(?:Draft|Option|Attempt|Version)\s*\d/i.test(t) || // *   *Draft 1*: / *   Option 2:
+            /^\*\s+(?:Wait|Let me|Hmm|Actually|Okay|OK,)/i.test(t) ||   // *   Wait, ... / *   Let me...
             /^-\s+(Single asterisk|No double|Tags used|Simple mode|Draft|Applying|Constraint|Tone|Output)/i.test(t)
         ) {
             thinkingCount++;
         }
     }
 
-    // Jika >30% baris terlihat seperti thinking, anggap CoT
+    // Jika >25% baris terlihat seperti thinking DAN minimal 2 baris, anggap CoT
     return thinkingCount >= 2 && (thinkingCount / lines.length) > 0.25;
 }
 
@@ -102,6 +226,13 @@ function looksLikeThinking(text) {
  * Mencoba berbagai strategi extraksi dari yang paling reliable ke fallback.
  */
 function extractAnswerFromThinking(text) {
+
+    // === PRE-CHECK: Coba quoted block extraction dulu ===
+    const quotedAnswer = extractLastQuotedBlock(text);
+    if (quotedAnswer && quotedAnswer.length > 20) {
+        return quotedAnswer;
+    }
+
     // === Strategi A: Cari marker yang menandai jawaban final ===
     const finalMarkers = [
         // Marker paling kuat (label "Final" / "Response" / "Polish" / "Applying")
@@ -113,6 +244,7 @@ function extractAnswerFromThinking(text) {
         '*Applying Formatting Rules:*', 'Applying Formatting Rules:',
         '*Applying Bold:*', 'Applying Bold:',
         '*Response:*', 'Response:',
+        "*Let's go with:*", "Let's go with:",
     ];
 
     // Marker lemah (Draft — seringkali ada versi awal DAN versi final, ambil yang terakhir)
@@ -182,9 +314,10 @@ function extractAnswerFromThinking(text) {
             if (collecting) resultLines.unshift(line);
             continue;
         }
-        if (isChecklistLine(t) || /^\*\s+\(?[A-Z]/.test(t)) {
+        // Expanded detection: juga tangkap *   *Bold Label*: pola (draft/option bullets)
+        if (isChecklistLine(t) || isThinkingBullet(t)) {
             if (collecting) break; // Sudah selesai mengumpulkan
-            continue; // Masih skipping checklist dari bawah
+            continue; // Masih skipping thinking dari bawah
         }
         // Baris normal!
         collecting = true;
@@ -200,14 +333,32 @@ function extractAnswerFromThinking(text) {
     const survivingLines = lines.filter(l => {
         const t = l.trim();
         if (t.length === 0) return true;
-        if (/^\*\s+\(?[A-Z][a-zA-Z\s\/-]*\)?:/.test(t)) return false; // *   Label:
-        if (/^\*\s+\*[A-Z]/.test(t)) return false;                     // *   *Bold label*
-        if (/^\(\w+/.test(t)) return false;                             // (Self-correction)
+        if (isThinkingBullet(t)) return false;
         if (isChecklistLine(t)) return false;
         return true;
     });
 
     return survivingLines.join('\n').trim();
+}
+
+/**
+ * Deteksi apakah sebuah baris adalah thinking bullet.
+ * Menangkap pola-pola:
+ *   *   User: ...           (label dengan uppercase)
+ *   *   *Draft 1*: ...     (bold label)
+ *   *   *Option 2*: ...    (bold label)
+ *   *Wait*, let me...       (inline self-correction)
+ *   (Self-correction)...    (parenthesized)
+ */
+function isThinkingBullet(line) {
+    const t = line.trim();
+    return (
+        /^\*\s+\(?[A-Z][a-zA-Z\s\/-]*\)?:/.test(t) ||    // *   User: / *   Message: / *   (Context):
+        /^\*\s*\*[A-Za-z]/.test(t) ||                      // *   *Draft:* / *   *Option 1*:
+        /^\*\s+(?:Wait|Let me|Hmm|Actually|Okay|OK,)/i.test(t) || // *   Wait, ...
+        /^\(\w+/.test(t) ||                                 // (Self-correction)
+        /^\*\s+"/.test(t)                                   // *   "quoted text" (draft in bullet)
+    );
 }
 
 /**
@@ -217,9 +368,11 @@ function extractAnswerFromThinking(text) {
 function isChecklistLine(line) {
     const t = line.trim();
     return (
-        /^\*?\s*\*?\s*(Single asterisk|No double|No `|Tags used|Simple mode|Output Format|Casual|Direct|Emoji|self-correct|check)/i.test(t) ||
-        /\?\s*(Yes|No|Check)\.?\s*$/i.test(t) ||
-        /^\(Self-correction/i.test(t)
+        /^\*?\s*\*?\s*(Single asterisk|No double|No `|Tags used|Simple mode|Output Format|Casual|Direct|Emoji|self-correct|check|Bold|Italic|Tone|Persona|Natural|Is it|No markdown|No preamble|WhatsApp style)/i.test(t) ||
+        /\?\s*(Yes|No|Check|Checked)\.?\s*$/i.test(t) ||
+        /^\(Self-correction/i.test(t) ||
+        /^\*?\s*\*?Is (?:it |the |this )/i.test(t) ||      // *  Is it natural? *  Is the bolding correct?
+        /^Okay,?\s+ready\.?$/i.test(t)                      // "Okay, ready." filler
     );
 }
 

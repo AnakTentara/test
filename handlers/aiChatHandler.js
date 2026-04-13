@@ -3,7 +3,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const { openaiShakaru, getLocalClient } = require('./geminiRotator');
 const { SYSTEM_PROMPT } = require('./persona');
-const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage } = require('./dbHandler');
+const { chatMemories, haikaruMemories, saveSingleHaikaruMemory, saveSingleShakaruMemory, addAiSentMessage, getRecentChatLog } = require('./dbHandler');
 const { generateVoice, hasPhysicalAction } = require('./voiceHandler');
 const { incrementVN, getPersonaForChat } = require('./agentHandler');
 const { scrubThoughts, sendLongMessage } = require('./utils');
@@ -277,9 +277,20 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
     for (let i = 0; i < hHistory.messages.length - 1; i++) {
         contextForAI.push(hHistory.messages[i]);
     }
-    
 
+    // Definisikan lastMsgHaikaru (pesan terakhir di history, digunakan di semua mode)
+    const lastMsgHaikaru = hHistory.messages[hHistory.messages.length - 1];
 
+    // === INJECT RECENT CHAT LOG untuk konteks percakapan ===
+    const recentLog = getRecentChatLog(chatId, 15);
+    let chatLogSystemMsg = null;
+    if (recentLog.length > 0) {
+        const logText = recentLog.map(l => `[${l.time}] ${l.name}: ${l.text}`).join('\n');
+        chatLogSystemMsg = {
+            role: 'system',
+            content: `[RECENT CHAT LOG - Pesan-pesan terakhir di chat ini untuk konteks percakapan. Gunakan ini untuk memahami topik yang sedang dibahas]\n${logText}`
+        };
+    }
     // ============================================================
     // DEEP THINKING ROUTER
     // ============================================================
@@ -314,6 +325,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             for (let i = 0; i < hHistory.messages.length - 1; i++) {
                 deepContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
             }
+            if (chatLogSystemMsg) deepContextForAI.push(chatLogSystemMsg);
             deepContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
             const localClient = getLocalClient();
@@ -419,13 +431,14 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
         }
         
         try {
-            const _simpInstruct = `\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nLANGSUNG BALAS PESAN USER. JANGAN menulis analisis, JANGAN menulis bullet point, JANGAN menulis draft, JANGAN menulis checklist. LANGSUNG TULIS JAWABAN CHAT SAJA seperti kamu sedang mengetik di WhatsApp. Tidak perlu memikirkan format, langsung jawab secara natural.`;
+            const _simpInstruct = `\n\n[ATURAN OUTPUT - WAJIB DIPATUHI]\nBALAS PESAN USER SECARA NATURAL. Jika kamu perlu berpikir, letakkan di dalam tag <thought> dan </thought>. Setelah itu, WAJIB bungkus jawaban WhatsApp finalmu di dalam tag <WhatsAppMessage> dan </WhatsAppMessage>. Tulis jawaban seolah kamu mengetik di WhatsApp. JANGAN menulis analisis, draft, atau checklist di luar tag thought.`;
             const simpleContextForAI = [
                 { role: "system", content: persona + _simpInstruct }
             ];
             for (let i = 0; i < hHistory.messages.length - 1; i++) {
                 simpleContextForAI.push(JSON.parse(JSON.stringify(hHistory.messages[i])));
             }
+            if (chatLogSystemMsg) simpleContextForAI.push(chatLogSystemMsg);
             simpleContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
             const localClient = getLocalClient();

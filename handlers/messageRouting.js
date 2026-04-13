@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
-const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds } = require('./dbHandler');
+const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds, addChatLog } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { analyzeEmojiReaction, getLocalClient } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
@@ -66,6 +66,88 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     const textBody = textMessage.trim();
     const isGroup = chatId.endsWith('@g.us');
+
+    // === REPLY CONTEXT: Extract teks/media dari pesan yang sedang di-reply ===
+    let replyContext = null;
+    if (quotedMsg) {
+        // 1. Extract teks konten (jika ada)
+        let quotedText = quotedMsg.conversation 
+            || quotedMsg.extendedTextMessage?.text 
+            || quotedMsg.imageMessage?.caption
+            || quotedMsg.videoMessage?.caption
+            || null;
+        
+        // 2. Deteksi tipe attachment yang di-reply
+        let quotedAttachment = null;
+        if (quotedMsg.imageMessage) {
+            quotedAttachment = quotedText ? `[Foto dengan caption]` : '[Foto/Gambar]';
+        } else if (quotedMsg.videoMessage) {
+            quotedAttachment = quotedText ? `[Video dengan caption]` : '[Video]';
+        } else if (quotedMsg.audioMessage) {
+            quotedAttachment = quotedMsg.audioMessage.ptt ? '[Voice Note/Pesan Suara]' : '[File Audio]';
+        } else if (quotedMsg.documentMessage) {
+            const fname = quotedMsg.documentMessage.fileName || 'file';
+            quotedAttachment = `[Dokumen: ${fname}]`;
+        } else if (quotedMsg.stickerMessage) {
+            quotedAttachment = '[Stiker]';
+        } else if (quotedMsg.contactMessage) {
+            const cname = quotedMsg.contactMessage.displayName || 'kontak';
+            quotedAttachment = `[Kontak: ${cname}]`;
+        } else if (quotedMsg.contactsArrayMessage) {
+            quotedAttachment = `[${quotedMsg.contactsArrayMessage.contacts?.length || 'beberapa'} Kontak]`;
+        } else if (quotedMsg.locationMessage || quotedMsg.liveLocationMessage) {
+            quotedAttachment = quotedMsg.liveLocationMessage ? '[Lokasi Live]' : '[Lokasi/Maps]';
+        } else if (quotedMsg.pollCreationMessage || quotedMsg.pollCreationMessageV3) {
+            const pollName = quotedMsg.pollCreationMessage?.name || quotedMsg.pollCreationMessageV3?.name || '';
+            quotedAttachment = `[Polling${pollName ? ': ' + pollName : ''}]`;
+        } else if (quotedMsg.eventMessage) {
+            quotedAttachment = '[Acara/Event]';
+        } else if (quotedMsg.productMessage) {
+            quotedAttachment = '[Produk/Katalog]';
+        }
+
+        // 3. Gabungkan: teks + attachment description
+        let displayContent = '';
+        if (quotedText && quotedAttachment) {
+            displayContent = `${quotedAttachment} "${quotedText.substring(0, 400)}"`;
+        } else if (quotedText) {
+            displayContent = quotedText.substring(0, 500);
+        } else if (quotedAttachment) {
+            displayContent = quotedAttachment;
+        } else {
+            displayContent = '[Pesan]'; // Fallback
+        }
+
+        // 4. Identifikasi SIAPA yang mengirim pesan yang di-reply
+        const contextInfo = msg.message?.extendedTextMessage?.contextInfo 
+            || msg.message?.imageMessage?.contextInfo || {};
+        const quotedParticipant = contextInfo.participant || '';
+        const botRawJid = sock?.user?.id || '';
+        const botNumber2 = botRawJid.split(':')[0].split('@')[0];
+        const botJid = botNumber2 + '@s.whatsapp.net';
+        const rawLid2 = sock.user?.lid || sock.authState?.creds?.me?.lid || '';
+        const botLid = rawLid2 ? rawLid2.split(':')[0].split('@')[0] : '';
+        const botLidJid = botLid + '@lid';
+
+        // Apakah reply ke pesan AI?
+        const isReplyToAI = quotedParticipant === botJid 
+            || quotedParticipant === botLidJid 
+            || aiSentMessageIds.has(contextInfo.stanzaId);
+
+        // Apakah reply ke pesan diri sendiri?
+        const senderJid = msg.key.participant || msg.key.remoteJid || '';
+        const senderAlt = msg.key.participantAlt || msg.key.remoteJidAlt || '';
+        const isReplyToSelf = !isReplyToAI && (
+            quotedParticipant === senderJid || quotedParticipant === senderAlt
+        );
+
+        replyContext = {
+            text: displayContent,
+            isReplyToAI,
+            isReplyToSelf,
+            hasAttachment: !!quotedAttachment
+        };
+    }
 
     // ==== CONTEXT PREFIX ====
     const nowDate = new Date();
@@ -158,8 +240,26 @@ async function handleIncomingMessage(sock, msg, isShakaruInstance) {
 
     const buildPrefix = (text) =>
         `[${jamTanggal} (GMT+7/Jakarta)] [${pushName}] [Number: ${numberPart} ; Lid: ${lidPart}] : ${text}`;
-        
-    const prefixMessage = buildPrefix(textMessage);
+    
+    // Build prefix dengan reply context jika ada (mendukung semua tipe attachment)
+    const buildPrefixWithReply = (text, reply) => {
+        let base = buildPrefix(text);
+        if (reply) {
+            let label;
+            if (reply.isReplyToAI) {
+                label = 'Replying to YOUR (AI) previous message';
+            } else if (reply.isReplyToSelf) {
+                label = 'Replying to their OWN previous message';
+            } else {
+                label = "Replying to another person's message";
+            }
+            const safeQuoted = reply.text.replace(/"/g, "'").replace(/\n/g, ' ');
+            base = `{ replyContext: "${label}", quotedContent: "${safeQuoted}" }\n${base}`;
+        }
+        return base;
+    };
+
+    const prefixMessage = buildPrefixWithReply(textMessage, replyContext);
     
     // Log pesan PERSIS seperti yang dilihat AI
     const apiLogMessage = prefixMessage.length > 200 ? prefixMessage.substring(0, 200) + '...' : prefixMessage;
@@ -326,6 +426,12 @@ ${helpText}` : helpText;
     // ROUTING UNTUK BUKAN RP (OWNER & PUBLIK)
     else if (!activeChats.has(chatId) && !isFromMe) {
         
+        // === PASSIVE CHAT LOG: Rekam SEMUA pesan untuk konteks AI ===
+        // Dicatat SEBELUM filter grup, jadi pesan antar-user juga terekam
+        if (!isFromMe) {
+            addChatLog(chatId, pushName, textMessage, memoryFileName);
+        }
+
         // Pengecekan Grup: Haikaru/Agent HANYA muncul jika di tag atau di-reply!
         if (isGroup) {
             const botNumber = sock.user.id.split(':')[0].split('@')[0];

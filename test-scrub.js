@@ -1,80 +1,140 @@
-/**
- * Test scrubber terhadap output Gemma-4 yang bocor thinking-nya
- */
 const { scrubThoughts } = require('./handlers/utils');
 
-// ===== TEST 1: Output Gemma yang FULL CoT bocor (dari log asli) =====
-const gemmaLeaked = `*   User: Haikal (Owner).
-    *   Message: "halloww"
-    *   Time: 02.36 AM (Late night/Early morning).
-    *   Tone: Casual greeting.
-    *   Character: Haikaru (Gaul, santai, humoris, uses emojis).
-    *   Relationship: Friend/AI to Haikal.
-    *   Tone: Casual ("lo/gue" or "aku/kamu"), energetic/fun.
-    *   Constraint: Use *bold* (single asterisk), no markdown \`**\` or \`\` \` \`\`.
-    *   Constraint: Respond to owner with riang/santai.
-    *   Output Format: \`<thought>\` then \`<WhatsAppMessage>\`.
-    *   Since it's 2:36 AM, Haikaru should acknowledge the late hour.
-    *   Greeting back: "Halo juga bos!" or "Hallowww juga!"
-    *   Add some humor about the time: "Belum tidur lo? Begadang mulu ntar sakit 😭"
-    *   *Draft:* Hallowww juga bos! 🤙 Jam segini baru muncul, belum tidur lo? Begadang mulu ntar jompo lho 😭✨
-    *   *Applying Bold:* *Hallowww* juga bos! 🤙 Jam segini baru muncul, belum tidur lo? Begadang mulu ntar jompo lho 😭✨
-    *   Simple mode? Yes.
-    *   Single asterisk for bold? Yes.
-    *   No \`**\`? Yes.
-    *   Tags used? Yes.`;
+let passed = 0;
+let failed = 0;
 
-console.log('===== TEST 1: Full CoT bocor (no tags) =====');
-console.log('INPUT: (Gemma bullet-point thinking leak)');
-console.log('OUTPUT:', JSON.stringify(scrubThoughts(gemmaLeaked)));
-console.log();
+function test(name, input, expected) {
+    const result = scrubThoughts(input);
+    const ok = result === expected;
+    if (ok) {
+        console.log(`✅ ${name}`);
+        passed++;
+    } else {
+        console.log(`❌ ${name}`);
+        console.log(`   EXPECTED: ${JSON.stringify(expected).substring(0, 120)}`);
+        console.log(`   GOT:      ${JSON.stringify(result).substring(0, 120)}`);
+        failed++;
+    }
+}
 
-// ===== TEST 2: Output yang pakai <WhatsAppMessage> tag (nurut) =====
-const withTags = `<thought>
-User menyapa. Aku harus membalas santai.
-</thought>
-<WhatsAppMessage>Halo kawan! Ada yang bisa gue bantu?</WhatsAppMessage>`;
+// ===== TEST 1: Full CoT bocor dengan quoted answer (Samsung link case) =====
+test('Samsung link - quoted answer after drafts',
+    `*   User: Haikal (Owner).
+    *   Content: A link to an article about Samsung rollable phone 2026.
+    *   Context: Haikal is the creator of Haikaru.
+    *   Tone required: Haikaru (Gaul, santai, humoris).
+    *   Subject: Samsung rollable phone in 2026.
+    *   Acknowledge the link.
+    *   React to the tech news.
+    *   Keep it natural, like a friend chatting on WhatsApp.
+    *   Use *bold* for emphasis (single asterisk).
+    *   No bullet points, no analysis, just a chat message.
+    *   *Draft 1*: Wah, Samsung bakal bikin HP rollable ya di 2026? Keren banget sih.
+    *   *Draft 2 (More Haikaru style)*: Wih, gila sih! *Samsung rollable phone*? Keren parah 🤩.
+    *   "Wih, gila! *Samsung rollable phone*? 🔥 Keren banget sih kalau beneran rilis 2026 nanti. Bayangin aja layarnya bisa ditarik gitu, makin puas deh buat scrolling atau nonton 🤩. Gokil emang Samsung! ✨"
+    *   Single asterisk for bold? Yes (*Samsung rollable phone*).
+    *   No markdown \`**\`? Yes.
+    *   No preamble? Yes.
+    *   Natural WhatsApp style? Yes.
+    *   Emoji usage? Yes.`,
+    `Wih, gila! *Samsung rollable phone*? 🔥 Keren banget sih kalau beneran rilis 2026 nanti. Bayangin aja layarnya bisa ditarik gitu, makin puas deh buat scrolling atau nonton 🤩. Gokil emang Samsung! ✨`
+);
 
-console.log('===== TEST 2: Dengan XML tags (nurut) =====');
-console.log('INPUT: (properly tagged)');
-console.log('OUTPUT:', JSON.stringify(scrubThoughts(withTags)));
-console.log();
+// ===== TEST 2: "yang lebih rinci" case - multiple drafts with self-correction =====
+test('Multiple drafts with self-correction',
+    `*   User (Haikal, the owner) says: "yang lebih rinci coba" (try more detailed).
+    *   Context: This is a follow-up request.
+    *   Name: Haikaru.
+    *   I should ask what he wants me to detail.
+    *Let's go with:*
+    "Waduh, detail yang mana nih? 😭 Lo belum sebutin topiknya, jadi gue bingung mau ngerinci apa. Coba *spill* dikit, entar gue jabarin sampe ke akar-akarnya! 😎🔥"
+    *   Bold: *spill*
+    *   No markdown \`**\`.
+    *   Emojis: 😭, 😎, 🔥.
+    *   Tone: Casual/Gaul.
+    *Wait*, let me check if there was any hidden instruction. No.
+    *Let's provide a response that acknowledges I need the topic.*
+    "Waduh, detail yang mana nih? 😭 Gue belum tau lo lagi bahas apa. Coba *spill* topiknya, nanti gue jabarin sampe ke akar-akarnya biar lo puas! 😎🔥"
+    *Wait*, I should make it even more "Haikaru".
+    "Detail yang mana dulu nih? 😭 Gue belum tau lo lagi bahas apa. Coba *spill* dikit topiknya, entar gue gaspol rinciannya sampe tuntas! 😎✨"
+    *Checking constraint*: "JANGAN menulis analisis, JANGAN menulis draft, LANGSUNG TULIS JAWABAN CHAT SAJA".
+    Okay, ready.
+    *One more thing*: The user is the owner. I should be extra friendly.
+    "Waduh, detail yang mana nih? 😭 Gue belum tau lo lagi bahas apa. Coba *spill* dikit topiknya, entar gue jabarin sampe ke akar-akarnya biar lo puas! 😎🔥"`,
+    `Waduh, detail yang mana nih? 😭 Gue belum tau lo lagi bahas apa. Coba *spill* dikit topiknya, entar gue jabarin sampe ke akar-akarnya biar lo puas! 😎🔥`
+);
 
-// ===== TEST 3: Normal response tanpa CoT sama sekali =====
-const cleanResponse = `Hallowww juga bos! 🤙 Jam segini masih woke? Begadang mulu ntar cepet tua loh 😭`;
+// ===== TEST 3: Fotosintesis case - multi-line quoted answer =====
+test('Fotosintesis - multi-line quoted block',
+    `*   User (Haikal): "jelaskan fotosintesis coba. mau ngerjain tugas nih"
+    *   This is a biology question.
+    *   Haikaru style: casual, helpful, emojis.
+    *   *Draft 1*: Fotosintesis itu proses tumbuhan bikin makanan.
+    *   *Applying Haikaru Style:*
+    "Woles, gue bantuin biar tugas lo cepet kelar! 😎
+    Jadi, *fotosintesis* itu proses tumbuhan bikin makanannya sendiri pake bantuan cahaya matahari. Bahan utamanya tiga: *cahaya matahari*, *air (H2O)*, sama *karbondioksida (CO2)*.
+    Proses ini kejadiannya di bagian daun yang ada *klorofil*-nya. Hasil akhirnya berupa *glukosa* sama *oksigen (O2)*.
+    Semangat ngerjainnya, moga nilai lo mantap! 🔥"
+    *   No markdown \`**\`? Check.
+    *   Use \`*\` for bold? Check.
+    *   Casual/Gaul? Check.
+    *   To the point? Check.`,
+    `Woles, gue bantuin biar tugas lo cepet kelar! 😎
+Jadi, *fotosintesis* itu proses tumbuhan bikin makanannya sendiri pake bantuan cahaya matahari. Bahan utamanya tiga: *cahaya matahari*, *air (H2O)*, sama *karbondioksida (CO2)*.
+Proses ini kejadiannya di bagian daun yang ada *klorofil*-nya. Hasil akhirnya berupa *glukosa* sama *oksigen (O2)*.
+Semangat ngerjainnya, moga nilai lo mantap! 🔥`
+);
 
-console.log('===== TEST 3: Response bersih (tanpa CoT) =====');
-console.log('INPUT:', JSON.stringify(cleanResponse));
-console.log('OUTPUT:', JSON.stringify(scrubThoughts(cleanResponse)));
-console.log();
+// ===== TEST 4: Haloo greeting - simple case with options =====
+test('Greeting with options',
+    `*   User: Haikal (Owner).
+    *   Message: "haloo" (Greeting/Check-in).
+    *   Name: Haikaru.
+    *   Since the owner is saying "haloo", I should respond with a friendly greeting.
+    *   *Option 1:* Halo juga bos! Ada apa nih tiba-tiba nyapa? 😎
+    *   *Option 2:* Halo Haikal! *Wih* ada apa nih boss besar? 😂👋
+    *   Use *teks* for bold.
+    *   No \`**\`.
+    *Self-Correction*: The owner's message is just a "haloo". I'll keep it chill.
+    "Haloo juga bos! 😎 Tumben amat nyapa, ada apa nih? Mau ngobrol santai atau ada tugas buat *gue*? 😂✨"`,
+    `Haloo juga bos! 😎 Tumben amat nyapa, ada apa nih? Mau ngobrol santai atau ada tugas buat *gue*? 😂✨`
+);
 
-// ===== TEST 4: CoT dengan Final Text Construction marker =====
-const withFinalMarker = `*   User: Haikal
-    *   Message: Quantum computing
-    *   Draft: blah blah
-    *Final Text Construction:*
-    Wah, langsung berat nih bahasannya! 😂 Oke, gue jelasin pake bahasa tongkrongan ya.
+// ===== TEST 5: Native Gemma 4 Thinking Tokens (26B style) =====
+test('Native Gemma thinking tokens',
+    `<|channel>thought
+Thinking Process:
+1. User menyapa "halloww"
+2. Ini sapaan casual, jawab santai
+<channel|>Hallowww juga bos! 🤙 Jam segini masih begadang? Ntar cepet tua lho 😭<turn|>`,
+    `Hallowww juga bos! 🤙 Jam segini masih begadang? Ntar cepet tua lho 😭`
+);
 
-    Jadi gini bro, komputer biasa pake *bit*. Quantum pake *qubit*. Beda banget! 🤯
-    *   Single asterisk for bold? Yes.
-    *   No double? Yes.`;
+// ===== TEST 6: XML tags (backward compat) =====
+test('XML WhatsAppMessage tags',
+    `<thought>User menyapa, balas santai</thought><WhatsAppMessage>Halo kawan!</WhatsAppMessage>`,
+    `Halo kawan!`
+);
 
-console.log('===== TEST 4: Final Text Construction marker =====');
-console.log('OUTPUT:', JSON.stringify(scrubThoughts(withFinalMarker)));
-console.log();
+// ===== TEST 7: Clean response (pass-through) =====
+test('Clean response pass-through',
+    `Hallowww juga bos! 🤙`,
+    `Hallowww juga bos! 🤙`
+);
 
-// ===== TEST 5: Mixed - ada thought tag TAPI juga ada sisa CoT di luar =====
-const mixedOutput = `<thought>
-Ini analisis singkat
-</thought>
+// ===== TEST 8: Truncated Gemma thinking =====
+test('Truncated Gemma thinking',
+    `<|channel>thought
+Ini thinking yang terpotong karena max_tokens...`,
+    ``
+);
 
-*   Check formatting...
-*   Single asterisk? Yes.
+// ===== TEST 9: Gemma 31B style tokens =====
+test('Gemma 31B style tokens',
+    `<|think|>Hmm user menyapa, harus balas santai<channel|>Heyy! Ada apa nih malam-malam?`,
+    `Heyy! Ada apa nih malam-malam?`
+);
 
-Hallowww! Masih hidup lo? 😂`;
-
-console.log('===== TEST 5: Mixed (ada tag + sisa CoT) =====');
-console.log('OUTPUT:', JSON.stringify(scrubThoughts(mixedOutput)));
-console.log();
-
-console.log('====== ALL TESTS DONE ======');
+// ===== SUMMARY =====
+console.log(`\n====== RESULTS: ${passed} passed, ${failed} failed ======`);
+if (failed > 0) process.exit(1);

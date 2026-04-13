@@ -5,12 +5,14 @@ const yaml = require('js-yaml');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const SHAKARU_DIR = path.join(DATA_DIR, 'shakaru_chats');
 const HAIKARU_DIR = path.join(DATA_DIR, 'haikaru_chats');
+const CHATLOG_DIR = path.join(DATA_DIR, 'chat_logs');
 const ACTIVE_CHATS_FILE = path.join(DATA_DIR, 'active_chats.json');
 const DISABLED_CHATS_FILE = path.join(__dirname, '..', 'config', 'disabled-chats.yml');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(SHAKARU_DIR)) fs.mkdirSync(SHAKARU_DIR, { recursive: true });
 if (!fs.existsSync(HAIKARU_DIR)) fs.mkdirSync(HAIKARU_DIR, { recursive: true });
+if (!fs.existsSync(CHATLOG_DIR)) fs.mkdirSync(CHATLOG_DIR, { recursive: true });
 
 let activeChats = new Set();
 let disabledChats = new Set(); // Diload dari disabled-chats.yml
@@ -142,6 +144,93 @@ function deleteMemory(chatId) {
     }
 }
 
+// --- PASSIVE CHAT LOG (Rekam SEMUA pesan per-chat untuk konteks) ---
+const chatLogs = new Map(); // chatId -> { fileName, logs: [{name, text, time}] }
+const MAX_CHAT_LOG_ENTRIES = 50;
+
+/**
+ * Tambahkan entri ke chat log. Dipanggil untuk SEMUA pesan, termasuk
+ * yang bukan untuk AI — ini supaya AI punya konteks percakapan.
+ */
+function addChatLog(chatId, senderName, text, fileName) {
+    if (!text || text.length < 1) return;
+    let logObj = chatLogs.get(chatId) || { chatId, fileName: fileName || chatId.replace(/[^a-zA-Z0-9-]/g, '_'), logs: [] };
+    
+    // Update fileName jika disuplai (biar konsisten)
+    if (fileName) logObj.fileName = fileName;
+    
+    const now = new Date();
+    const wib = new Date(now.getTime() + (7 * 3600 * 1000));
+    const timeStr = `${String(wib.getUTCHours()).padStart(2,'0')}:${String(wib.getUTCMinutes()).padStart(2,'0')}`;
+    
+    logObj.logs.push({
+        name: senderName,
+        text: text.substring(0, 300), // Limit per pesan
+        time: timeStr
+    });
+    
+    // Rolling: simpan hanya N entri terakhir
+    if (logObj.logs.length > MAX_CHAT_LOG_ENTRIES) {
+        logObj.logs = logObj.logs.slice(-MAX_CHAT_LOG_ENTRIES);
+    }
+    
+    chatLogs.set(chatId, logObj);
+    saveChatLog(chatId); // Persist ke disk
+}
+
+/**
+ * Ambil N entri chat log terakhir untuk sebuah chat.
+ */
+function getRecentChatLog(chatId, count = 15) {
+    const logObj = chatLogs.get(chatId);
+    if (!logObj) return [];
+    return logObj.logs.slice(-count);
+}
+
+/**
+ * Simpan chat log satu chat ke disk.
+ */
+function saveChatLog(chatId) {
+    try {
+        const logObj = chatLogs.get(chatId);
+        if (!logObj) return;
+        const fName = logObj.fileName || chatId.replace(/[^a-zA-Z0-9-]/g, '_');
+        fs.writeFileSync(path.join(CHATLOG_DIR, fName + '.json'), JSON.stringify(logObj, null, 2));
+    } catch (err) {
+        console.error('[ERROR] Gagal simpan chat log:', err.message);
+    }
+}
+
+/**
+ * Load semua chat log dari disk saat startup.
+ */
+function loadChatLogs() {
+    try {
+        chatLogs.clear();
+        if (fs.existsSync(CHATLOG_DIR)) {
+            const files = fs.readdirSync(CHATLOG_DIR);
+            for (const f of files) {
+                if (f.endsWith('.json')) {
+                    try {
+                        const data = JSON.parse(fs.readFileSync(path.join(CHATLOG_DIR, f), 'utf8'));
+                        // Recover chatId dari data atau dari filename
+                        // Chat log files don't store chatId directly, find by iterating
+                        // We'll use a simple lookup: store chatId in the log object
+                        if (data.chatId) {
+                            chatLogs.set(data.chatId, data);
+                        }
+                    } catch (e) {
+                        // Skip corrupt files
+                    }
+                }
+            }
+            console.log(`[INFO] Berhasil memuat chat logs: ${chatLogs.size} chat.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal muat chat logs:', err.message);
+    }
+}
+
 // --- AI MESSAGE TRACKER ---
 let aiSentMessageIds = new Set();
 const AI_SENT_IDS_FILE = path.join(DATA_DIR, 'ai_sent_ids.json');
@@ -183,5 +272,8 @@ module.exports = {
     saveActiveChats,
     addAiSentMessage,
     loadAiSentMessages,
-    aiSentMessageIds
+    aiSentMessageIds,
+    addChatLog,
+    getRecentChatLog,
+    loadChatLogs
 };

@@ -3,7 +3,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 
-const { loadMemories, loadHaikaruMemories, loadDisabledChats, loadAiSentMessages } = require('./handlers/dbHandler');
+const { loadMemories, loadHaikaruMemories, loadDisabledChats, loadAiSentMessages, loadChatLogs } = require('./handlers/dbHandler');
 const { setSockSaran } = require('./handlers/aiChatHandler');
 const { handleIncomingMessage } = require('./handlers/messageRouting');
 const { loadChatPersonas, loadContacts } = require('./handlers/agentHandler');
@@ -58,6 +58,7 @@ async function createBot(sessionName, isShakaru) {
                 loadAiSentMessages(); // Load memory ID buatan AI
                 loadChatPersonas();
                 loadContacts();
+                loadChatLogs(); // Load passive chat logs
             }
             console.log(`✅ Berhasil terautentikasi: ${botName}`);
         }
