@@ -572,8 +572,7 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
             if (normalAnim) msg.__editKeyForNormal = normalAnim.getKey();
         }
 
-        const response = completion.choices[0].message;
-        const rawAnswer = response.content || '';
+        const rawAnswer = completion.text || '';
 
         // Log FULL RAW ke console untuk Owner
         console.log(`\n============== AGENT AI RAW RESPONSE ==============`);
@@ -582,16 +581,18 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
 
         const answer = scrubThoughts(rawAnswer);
 
-        if (response.tool_calls && response.tool_calls.length > 0) {
-            for (const tc of response.tool_calls) {
-                const toolName = tc.function.name;
-                const toolArgs = JSON.parse(tc.function.arguments);
+        const functionCalls = completion.functionCalls; // from native genAI
+
+        if (functionCalls && functionCalls.length > 0) {
+            for (const tc of functionCalls) {
+                const toolName = tc.name;
+                const toolArgs = tc.args;
                 console.log(`\n[🤖 AGENT] Mengeksekusi tool: ${toolName}`, toolArgs);
                 const result = await executeTool(toolName, toolArgs, chatId);
                 await sock.sendMessage(chatId, { text: result }, { quoted: msg });
             }
         } else {
-            let reply = response.content || 'Ada yang bisa gue bantu?';
+            let reply = rawAnswer || 'Ada yang bisa gue bantu?';
             const cleanReply = reply.trim().replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
 
             // Jaga-jaga kalau Gemini nge-return teks JSON manual alih-alih API Function Calling (ReAct halusinasi)

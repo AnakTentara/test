@@ -18,31 +18,6 @@ function setSockSaran(sock) {
 
 
 
-
-/**
- * Helper Translator Array sebelum masuk ke API rotatur pure native
- */
-async function callGenAI(model, rawContext, temperature, maxOutputTokens) {
-    let contents = [];
-    let sysTexts = [];
-    
-    for (const msg of rawContext) {
-        if (msg.role === 'system') {
-            sysTexts.push(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content));
-        } else {
-            contents.push(msg);
-        }
-    }
-    
-    let config = { temperature, maxOutputTokens };
-    if (sysTexts.length > 0) {
-        config.systemInstruction = { parts: [{ text: sysTexts.join('\n\n') }] };
-    }
-    
-    const resp = await generateContentRotator(model, contents, config);
-    return resp.text || "";
-}
-
 /**
  * Summarize history Shakaru jika melebihi panjang 50
  */
@@ -64,9 +39,14 @@ ${contextText}
 BERIKAN MURNI HASIL RINGKASAN NYA SAJA. Jangan ada kata pembuka. Ingat poin-poin penting kemesraan/konflik mereka!`;
 
     try {
-        const completionText = await callGenAI(getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", [{ role: 'user', parts: [{ text: promptSummarize }] }], 0.5, 500);
+        const completion = await openaiShakaru.chat.completions.create({
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
+            messages: [{ role: 'user', parts: [{ text: promptSummarize }] }],
+            temperature: 0.5,
+            max_tokens: 500,
+        });
 
-        historyObj.summary = completionText;
+        historyObj.summary = completion.choices[0].message.content;
         historyObj.messages = remainder;
         console.log(`[SUMMARIZE] Rangkuman baru selesai: ${historyObj.summary}`);
     } catch (error) {
@@ -121,9 +101,14 @@ _memeluk lehernya_ *"kamu mau hukum aku?"*`;
 
         contextForAI.push({ role: "system", content: promptSaran });
 
-        const rawAnswer = await callGenAI(getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", contextForAI, 0.8, 1500);
+        const completion = await openaiShakaru.chat.completions.create({
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
+            messages: contextForAI,
+            temperature: 0.8,
+            max_tokens: 1500,
+        });
 
-        let suggestionsText = rawAnswer;
+        let suggestionsText = completion.choices[0].message.content;
         if (suggestionsText.includes('|||')) suggestionsText = suggestionsText.replace(/\|\|\|/g, '[SPLIT]');
         
         const optionsArray = suggestionsText.split('[SPLIT]').map(t => t.trim()).filter(Boolean);
@@ -149,10 +134,11 @@ function buildVisionMessage(role, textContent, imageObj) {
     if (imageObj) {
         return {
             role: role,
-            parts: [
-                { text: textContent || "Apa isi gambar ini?" },
+            content: [
+                { type: "text", text: textContent || "Apa isi gambar ini?" },
                 {
-                    inlineData: { mimeType: imageObj.mimeType, data: imageObj.data }
+                    type: "image_url",
+                    image_url: { url: `data:${imageObj.mimeType};base64,${imageObj.data}` }
                 }
             ]
         };
@@ -206,9 +192,14 @@ async function processShakaruChat(sock, chatId, textMessage, imageObj, msg, memo
     await sock.sendPresenceUpdate('composing', chatId);
 
     try {
-        const rawAnswer = await callGenAI(getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", contextForAI, 0.8, 2000);
+        const completion = await openaiShakaru.chat.completions.create({
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
+            messages: contextForAI,
+            temperature: 0.8,
+            max_tokens: 2000,
+        });
 
-        // (rawAnswer langsung returned dari callGenAI)
+        const rawAnswer = completion.choices[0].message.content;
         
         // Log RAW (Full termasuk Thought) ke console
         console.log(`\n============== SHAKARU AI RAW RESPONSE ==============`);
@@ -358,7 +349,7 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             const completion = await Promise.race([aiPromise, timeoutPromise]);
             clearTimeout(timeoutTimer);
 
-            // (rawAnswer langsung returned dari callGenAI)
+            const rawAnswer = completion.choices[0].message.content;
 
             // Log RAW (Full termasuk Thought) ke console
             console.log(`\n============== DEEP THINKING RAW RESPONSE ==============`);
@@ -412,8 +403,13 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
                     }
 
                     const localClient = getLocalClient();
-                    const fbRawAnswer = await callGenAI(getConfig().models?.haikaru || 'gemma-4-26b-a4b-it', fallbackContext, 0.9, 800);
-                    const fbAnswer = scrubThoughts(fbRawAnswer);
+                    const fallback = await localClient.chat.completions.create({
+                        model: getConfig().models?.haikaru || 'gemma-4-26b-a4b-it',
+                        messages: fallbackContext,
+                        temperature: 0.9,
+                        max_tokens: 800,
+                    });
+                    const fbAnswer = scrubThoughts(fallback.choices[0].message.content);
                     hHistory.messages.push({ role: 'model', parts: [{ text: fbAnswer }] });
                     haikaruMemories.set(chatId, hHistory);
                     saveSingleHaikaruMemory(chatId);
@@ -446,9 +442,14 @@ async function processHaikaruChat(sock, chatId, textMessage, imageObj, msg, memo
             simpleContextForAI.push(JSON.parse(JSON.stringify(buildVisionMessage(lastMsgHaikaru.role, lastMsgHaikaru.content, imageObj))));
 
             const localClient = getLocalClient();
-            const rawAnswer = await callGenAI(getConfig().models?.haikaru || getConfig().models?.default || "gemma-4-26b-a4b-it", simpleContextForAI, 0.9, 800);
+            const completion = await localClient.chat.completions.create({
+                model: getConfig().models?.haikaru || getConfig().models?.default || "gemma-4-26b-a4b-it",
+                messages: simpleContextForAI,
+                temperature: 0.9,
+                max_tokens: 800,
+            });
 
-            // (rawAnswer langsung returned dari callGenAI)
+            const rawAnswer = completion.choices[0].message.content;
             if (normalAnim) normalAnim.stop();
 
             // Log RAW (Full termasuk Thought) ke console
@@ -494,9 +495,14 @@ async function forceShakaruContinue(sock, chatId, msg) {
     contextForAI.push({ role: 'user', parts: [{ text: '[SISTEM: Lanjutkan alur cerita terakhirmu sebagai Shakaru secara natural. Jangan mengulangi apa yang sudah dikatakan.]' }] });
 
     try {
-        const rawAnswer = await callGenAI(getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", contextForAI, 0.8, 2000);
+        const completion = await openaiShakaru.chat.completions.create({
+            model: getConfig().models?.shakaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
+            messages: contextForAI,
+            temperature: 0.8,
+            max_tokens: 2000,
+        });
 
-        // (rawAnswer langsung returned dari callGenAI)
+        const rawAnswer = completion.choices[0].message.content;
         const answer = scrubThoughts(rawAnswer);
 
         historyObj.messages.push({ role: 'model', parts: [{ text: answer }] });
@@ -526,9 +532,14 @@ async function processHaikaruText(chatId, textMessage) {
     ];
 
     const localClient = getLocalClient();
-    const rawAnswer = await callGenAI(getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview", contextForAI, 0.9, 200);
+    const completion = await localClient.chat.completions.create({
+        model: getConfig().models?.haikaru || getConfig().models?.default || "gemini-3.1-flash-lite-preview",
+        messages: contextForAI,
+        temperature: 0.9,
+        max_tokens: 200,
+    });
 
-    // (rawAnswer langsung returned dari callGenAI)
+    const rawAnswer = completion.choices[0].message.content;
     const answer = scrubThoughts(rawAnswer);
     
     hHistory.messages.push({ role: 'model', parts: [{ text: answer }] });

@@ -1,82 +1,117 @@
 require('dotenv').config();
-const { OpenAI } = require('openai');
 const { GoogleGenAI } = require('@google/genai');
 
-// Client utama dengan AI Proxy untuk menghindari 403 pemblokiran Region/IP dari Google
-const openaiShakaru = new OpenAI({
-    baseURL: process.env.OPENAI_BASE_URL,
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-function getLocalClient() {
-    return openaiShakaru;
-}
-
-// ===== GOOGLE GENAI CLIENT (Direct ke Google, buat native thinking) =====
-// Kumpulkan semua GEMINI_API_KEY_* dari .env
 const geminiKeys = [];
-for (let i = 1; i <= 100; i++) {
-    const key = process.env[`GEMINI_API_KEY_${i}`];
-    if (key) geminiKeys.push(key);
-    else break;
+for (const envKey of Object.keys(process.env)) {
+    if (envKey.startsWith('GEMINI_API_KEY_') && process.env[envKey]) {
+        geminiKeys.push({ label: envKey, key: process.env[envKey] });
+    }
 }
+
+console.log(`[🔑 NATIVE ROTATOR] Loaded ${geminiKeys.length} Gemini API keys dari .env (PURE NATIVE)`);
+
+const genAIclients = geminiKeys.map(k => new GoogleGenAI({ apiKey: k.key }));
+
 let currentKeyIndex = 0;
+let deadKeys = new Set(); // Karantina buat key yang mereturn 400 (Invalid/Deleted)
 
 /**
- * Ambil Google GenAI client dengan rotasi key.
- * Setiap panggilan akan merotasi ke key berikutnya.
+ * Engine Rotator Utama (Pure GoogleGenAI Native)
  */
-function getGenaiClient() {
-    if (geminiKeys.length === 0) return null;
-    const key = geminiKeys[currentKeyIndex % geminiKeys.length];
-    currentKeyIndex++;
-    return new GoogleGenAI({ apiKey: key });
+async function generateContentRotator(modelName, contents, config = {}) {
+    if (genAIclients.length === 0) {
+        throw new Error("TIDAK ADA GEMINI_API_KEY DI .env!");
+    }
+
+    const total = genAIclients.length;
+    let attempts = 0;
+    let modelToTry = modelName;
+
+    while (attempts < total) {
+        const index = currentKeyIndex;
+        currentKeyIndex = (currentKeyIndex + 1) % total;
+
+        if (deadKeys.has(index)) {
+            attempts++;
+            continue;
+        }
+
+        const client = genAIclients[index];
+        const keyLabel = geminiKeys[index].label;
+
+        try {
+            // --- EKSEKUSI PURE NATIVE @google/genai ---
+            const resp = await client.models.generateContent({
+                model: modelToTry,
+                contents: contents,
+                config: config
+            });
+
+            return resp; // Return FULL OBJECT agar agentHandler bisa baca resp.functionCalls
+
+        } catch (err) {
+            const status = err.status || (err.response ? err.response.status : 500);
+            
+            // Tangkap 400 (Invalid/Deleted Key)
+            if (status === 400 || (err.message && err.message.toLowerCase().includes("api key not valid"))) {
+                console.log(`[ROTATOR] ☠️ Key ${keyLabel} is DEAD (400 Invalid / Deleted). Dikarantina permanen.`);
+                deadKeys.add(index);
+                attempts++;
+                continue;
+            }
+
+            // Kalau kena Rate Limit (429/403) atau error server internal (5xx), lompat ke key lain!
+            if (status === 429 || status === 403 || status >= 500) {
+                attempts++;
+                continue;
+            }
+
+            // Error payload/safety issue
+            err.statusCode = status;
+            throw err;
+        }
+    }
+
+    // CASCADE FALLBACK BERANTAI
+    if (modelName === "gemma-4-31b-it") {
+        console.log(`[WARNING] Seluruh key ROTATOR limit untuk model 31B. Fallback tier 1: 31B -> 26B`);
+        return generateContentRotator("gemma-4-26b-a4b-it", contents, config);
+    }
+    if (modelName === "gemma-4-26b-a4b-it") {
+        console.log(`[WARNING] Seluruh key ROTATOR limit untuk model 26B. Fallback tier 2: 26B -> gemini-2.5-pro`);
+        return generateContentRotator("gemini-2.5-pro", contents, config);
+    }
+    if (modelName === "gemini-2.5-pro") {
+        console.log(`[WARNING] Seluruh key ROTATOR limit untuk model 2.5 Pro. Fallback tier 3: Pro -> Flash Lite`);
+        return generateContentRotator("gemini-3.1-flash-lite-preview", contents, config);
+    }
+
+    throw new Error(`[FATAL] Semua API Keys exhausted total untuk model ${modelName}`);
 }
 
 /**
- * Ambil API key saat ini (untuk debugging/logging)
- */
-function getCurrentKeyName() {
-    return `GEMINI_API_KEY_${((currentKeyIndex - 1) % geminiKeys.length) + 1}`;
-}
-
-console.log(`[🔑 GENAI] Loaded ${geminiKeys.length} Gemini API keys for native GenAI client`);
-
-/**
- * Fitur Reaksi Emoji Otomatis menggunakan Local API
+ * Fitur Reaksi Emoji Otomatis (Pure Native GenAI)
  */
 async function analyzeEmojiReaction(textMessage, contextArr = []) {
     try {
-        const client = getLocalClient();
-        
-        let messagesContext = [
-            { role: "system", content: "Kamu adalah AI analis sentimen reaktif. Tugasmu BUKAN membalas obrolan, melainkan memberikan HANYA SATU karakter Emoji Unicode asli (contoh: 😂, 😡, 🥺, ❤️, 🔥) yang paling menggambarkan ekspresi yang tepat untuk membalas pesan terakhir user berdasarkan konteks. JIKA TIDAK YAKIN atau biasa saja, JANGAN BERIKAN EMOJI APAPUN (kosongkan). Ingat: HANYA 1 KARAKTER EMOJI atau KOSONG. JANGAN tulis teks huruf." }
-        ];
-
-        // Masukkan history jika ada
-        if (contextArr && contextArr.length > 0) {
-            messagesContext.push(...contextArr);
-        }
-        
-        messagesContext.push({ role: "user", content: textMessage });
-
-        const completion = await client.chat.completions.create({
-            model: "gemini-3.1-flash-lite",
-            messages: messagesContext,
+        let contents = [];
+        const config = {
+            systemInstruction: { parts: [{ text: "Kamu adalah AI analis sentimen reaktif. Tugasmu BUKAN membalas obrolan, melainkan memberikan HANYA SATU karakter Emoji Unicode asli (contoh: 😂, 😡, 🥺, ❤️, 🔥). JIKA TIDAK YAKIN atau biasa saja, JANGAN BERIKAN EMOJI APAPUN (kosongkan). HANYA 1 KARAKTER EMOJI atau KOSONG. JANGAN tulis teks huruf." }] },
             temperature: 0.3,
-            max_tokens: 5
-        });
-        const resp = completion.choices[0].message.content.trim();
-        return resp; 
+            maxOutputTokens: 5
+        };
+
+        if (contextArr && contextArr.length > 0) contents.push(...contextArr);
+        contents.push({ role: "user", parts: [{ text: textMessage }] });
+
+        const resp = await generateContentRotator("gemini-3.1-flash-lite-preview", contents, config); 
+        return resp.text || null;
     } catch (err) {
-        return null;
+        return null; // Silent fail
     }
 }
 
 module.exports = {
-    analyzeEmojiReaction,
-    openaiShakaru,
-    getLocalClient,
-    getGenaiClient,
-    getCurrentKeyName
+    generateContentRotator,
+    analyzeEmojiReaction
 };
