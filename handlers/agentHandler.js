@@ -484,6 +484,14 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
     }
 }
 
+function isOwner(identifier) {
+    if (!identifier) return false;
+    return getOwnerNumbers().some(num => {
+        const localNum = '0' + num.slice(2);
+        return identifier.includes(num) || identifier.includes(localNum);
+    });
+}
+
 module.exports = {
     runAgent,
     isOwner,
