@@ -3,7 +3,7 @@ const path = require('path');
 const yaml = require('js-yaml');
 const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds, addChatLog } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
-const { generateContentRotator } = require('./geminiRotator');
+const { generateContentRotator, analyzeEmojiReaction } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
 const { runAgent, isOwner, incrementReply, incrementVN, getPersonaForChat } = require('./agentHandler');
 const { getConfig } = require('./configManager');
@@ -499,7 +499,8 @@ ${helpText}` : helpText;
         */
 
         // 3. Jika bukan VN Request, baru cek apakah ini Owner (Sistem Agent)
-        if (isOwner(prefixMessage)) {
+        const senderJid = msg.key.participant || msg.key.remoteJid || '';
+        if (isOwner(senderJid)) {
             incrementReply();
             await runAgent(sock, chatId, prefixMessage, msg, imageObj);
             return;

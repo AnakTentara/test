@@ -11,6 +11,15 @@ const { classifyComplexity, startThinkingAnimation, startNormalAnimation } = req
 // ===== OWNER CONFIG (dari configManager) =====
 function getOwnerNumbers() { return getConfig().owner_numbers || []; }
 
+function isOwner(identifier) {
+    if (!identifier) return false;
+    return getOwnerNumbers().some(num => {
+        const localNum = '0' + num.slice(2);
+        return identifier.includes(num) || identifier.includes(localNum);
+    });
+}
+
+
 const PERSONAS_DIR = path.join(__dirname, '..', 'config', 'personas');
 const ACTIVE_CONFIG = path.join(PERSONAS_DIR, 'active.yml');
 const DEFAULT_PERSONA = path.join(PERSONAS_DIR, 'default.txt');
@@ -484,13 +493,6 @@ async function runAgent(sock, chatId, textMessage, msg, imageObj) {
     }
 }
 
-function isOwner(identifier) {
-    if (!identifier) return false;
-    return getOwnerNumbers().some(num => {
-        const localNum = '0' + num.slice(2);
-        return identifier.includes(num) || identifier.includes(localNum);
-    });
-}
 
 module.exports = {
     runAgent,
