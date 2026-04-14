@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
-const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, aiSentMessageIds, addChatLog } = require('./dbHandler');
+const { activeChats, disabledChats, saveSingleShakaruMemory, saveActiveChats, deleteMemory, saveDisabledChats, chatMemories, haikaruMemories, aiSentMessageIds, addChatLog } = require('./dbHandler');
 const { processShakaruChat, processHaikaruChat, forceShakaruContinue } = require('./aiChatHandler');
 const { generateContentRotator, analyzeEmojiReaction } = require('./geminiRotator');
 const { generateVoice, isNaturalVNRequest } = require('./voiceHandler');
